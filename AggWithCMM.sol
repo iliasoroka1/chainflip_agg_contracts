@@ -187,7 +187,6 @@ contract ThorchainMayaChainflipCCMAggregator {
     DEX dex;
     address tokenIn;
     address tokenOut;
-    uint256 percentage;
     uint256 minAmountOut; 
     }
 
@@ -661,55 +660,62 @@ function _swapOnSushiswap(
         }
         return amounts[1];
 }
+function executeSwapSteps(
+    SwapStep[] memory steps,
+    address initialToken,
+    uint256 initialAmount
+) internal returns (uint256) {
+    uint256 currentAmount = initialAmount;
+    address currentToken = initialToken;
 
-    function executeSwapSteps(
-        SwapStep[] memory steps,
-        address initialToken,
-        uint256 initialAmount
-    ) internal returns (uint256) {
-        uint256 currentAmount = initialAmount;
-        address currentToken = initialToken;
-
-        for (uint i = 0; i < steps.length; i++) {
-            SwapStep memory step = steps[i];
-            uint256 stepAmount = currentAmount;
-            
-            uint256 stepOutput;
-            if (step.dex == DEX.UNISWAP) {
-                stepOutput = _swapOnUniswap(
-                    determineSwapType(currentToken, step.tokenOut),
-                    currentToken,
-                    stepAmount,
-                    step.tokenOut,
-                    step.minAmountOut,
-                    address(this),
-                    true
-                );
-            } else if (step.dex == DEX.SUSHISWAP) {
-                stepOutput = _swapOnSushiswap(
-                    determineSwapType(currentToken, step.tokenOut),
-                    currentToken,
-                    stepAmount,
-                    step.tokenOut,
-                    step.minAmountOut,
-                    address(this),
-                    true
-                );
-            } else {
-                revert("Unsupported DEX for this step");
-            }
-            
-            currentAmount = stepOutput;
-            currentToken = step.tokenOut;
+    for (uint i = 0; i < steps.length; i++) {
+        SwapStep memory step = steps[i];
+        uint256 stepAmount = currentAmount;
+        
+        // Approve the current token for the respective DEX
+        if (step.dex == DEX.UNISWAP) {
+            _approveUniswap(currentToken, stepAmount);
+        } else if (step.dex == DEX.SUSHISWAP) {
+            _approveSushiswap(currentToken, stepAmount);
         }
-        return currentAmount;
-    }
-
-    function _approveUniswap(address token, uint256 amount) internal {
-        if (!isETH(token)) {
-            token.safeApprove(address(uniRouter), amount);
+        
+        uint256 stepOutput;
+        if (step.dex == DEX.UNISWAP) {
+            stepOutput = _swapOnUniswap(
+                determineSwapType(currentToken, step.tokenOut),
+                currentToken,
+                stepAmount,
+                step.tokenOut,
+                step.minAmountOut,
+                address(this),
+                true
+            );
+        } else if (step.dex == DEX.SUSHISWAP) {
+            stepOutput = _swapOnSushiswap(
+                determineSwapType(currentToken, step.tokenOut),
+                currentToken,
+                stepAmount,
+                step.tokenOut,
+                step.minAmountOut,
+                address(this),
+                true
+            );
+        } else {
+            revert("Unsupported DEX for this step");
         }
+        
+        currentAmount = stepOutput;
+        currentToken = step.tokenOut;
     }
+    return currentAmount;
+}
+
+function _approveUniswap(address token, uint256 amount) internal {
+    if (!isETH(token)) {
+        token.safeApprove(address(uniRouter), amount);
+    }
+}
+
 
     function executeMultiDexSwap(
         SwapStep[] memory steps,
@@ -760,8 +766,24 @@ function _swapOnSushiswap(
     ) public payable nonReentrant {
         try this.cfReceiveInternal(srcChain, srcAddress, message, token, amount) {
         } catch Error(string memory reason) {
+            // (, address router,) = abi.decode(                message,
+            //     (uint8, address, bytes)
+            // );
+            // if (isETH(token)) {
+            //     router.safeTransferETH(amount);
+            // } else {
+            //     token.safeTransfer(router, amount);
+            // }
             emit SwapFailed(srcChain, srcAddress, token, amount, reason);
         } catch (bytes memory reason) {
+            // (, address router,) = abi.decode(                message,
+            //     (uint8, address, bytes)
+            // );
+            // if (isETH(token)) {
+            //     router.safeTransferETH(amount);
+            // } else {
+            //     token.safeTransfer(router, amount);
+            // }
             emit SwapFailed(srcChain, srcAddress, token, amount, string(reason));
         }
     }
@@ -802,11 +824,16 @@ function _swapOnSushiswap(
             for (uint i = 0; i < encodedSteps.length; i++) {
                 steps[i] = SwapStep({
                     dex: encodedSteps[i].dex,
-                    tokenIn: i == 0 ? token : steps[i-1].tokenOut,
-                    tokenOut: finalOutputToken, // Will be set off-chain for intermediate steps
-                    percentage: encodedSteps[i].percentage,
-                    minAmountOut: 0 // Only set for the final step off-chain
+                    tokenIn: token,
+                    tokenOut: finalOutputToken, 
+                    minAmountOut: 0 
                 });
+            }
+            
+            // Approve token spending for Uniswap and Sushiswap
+            if (!isETH(token)) {
+                _approveUniswap(token, amount);
+                _approveSushiswap(token, amount);
             }
             
             uint256 outputAmount = executeSwapSteps(steps, token, amount);
@@ -820,6 +847,7 @@ function _swapOnSushiswap(
             }
 
             emit CFReceive(srcChain, srcAddress, token, amount, router, "success advanced swap");
+
         } else if (swapType == 2) {
             // deposit ICHAINFLIP_LP
             bytes32 nodeID = abi.decode(memoBytes, (bytes32));
