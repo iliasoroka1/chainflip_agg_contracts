@@ -449,22 +449,22 @@ contract ThorchainMayaChainflipCCMAggregator {
     ChainflipCCMParams chainflipParams;
 }
 
-function SuperEVMThenThorChainflipCCM(SuperEVMSwapParams memory params) public payable nonReentrant {
-    require(params.stepsSushi.length > 0 || params.stepsUni.length > 0, "No swap steps provided");
+// function SuperEVMThenThorChainflipCCM(SuperEVMSwapParams memory params) public payable nonReentrant {
+//     require(params.stepsSushi.length > 0 || params.stepsUni.length > 0, "No swap steps provided");
 
-    address outputToken = params.stepsSushi[params.stepsSushi.length - 1].tokenOut;
+//     address outputToken = params.stepsSushi[params.stepsSushi.length - 1].tokenOut;
 
-    if (isETH(params.inputToken)) {
-        require(msg.value == params.inputAmount, "Incorrect ETH amount");
-    } else {
-        require(msg.value == 0, "ETH not accepted for token swaps");
-        params.inputToken.safeTransferFrom(msg.sender, address(this), params.inputAmount);
-    }
+//     if (isETH(params.inputToken)) {
+//         require(msg.value == params.inputAmount, "Incorrect ETH amount");
+//     } else {
+//         require(msg.value == 0, "ETH not accepted for token swaps");
+//         params.inputToken.safeTransferFrom(msg.sender, address(this), params.inputAmount);
+//     }
     
-    uint256 inputSushi = (params.inputAmount * params.percentageSushi) / 100;
-    _executeSuperEVMThenThorChainflipCCM(params, inputSushi, outputToken);
-    emit SwapExecuted("UniSushiThenThorChainflipCCM", params.inputToken, params.inputAmount, "");
-}
+//     uint256 inputSushi = (params.inputAmount * params.percentageSushi) / 100;
+//     _executeSuperEVMThenThorChainflipCCM(params, inputSushi, outputToken);
+//     emit SwapExecuted("UniSushiThenThorChainflipCCM", params.inputToken, params.inputAmount, "");
+// }
 
 function _executeSuperEVMThenThorChainflipCCM(
     SuperEVMSwapParams memory params,
@@ -817,35 +817,7 @@ function _approveUniswap(address token, uint256 amount) internal {
 
         } else if (swapType == 1) {
             // Advanced swap on Uniswap and/or Sushiswap
-            (address finalOutputToken, uint256 minTotalOutputAmount, EncodedSwapStep[] memory encodedSteps) = abi.decode(memoBytes, (address, uint256, EncodedSwapStep[]));
-            
-            SwapStep[] memory steps = new SwapStep[](encodedSteps.length);
-            
-            for (uint i = 0; i < encodedSteps.length; i++) {
-                steps[i] = SwapStep({
-                    dex: encodedSteps[i].dex,
-                    tokenIn: token,
-                    tokenOut: finalOutputToken, 
-                    minAmountOut: 0 
-                });
-            }
-            
-            // Approve token spending for Uniswap and Sushiswap
-            if (!isETH(token)) {
-                _approveUniswap(token, amount);
-                _approveSushiswap(token, amount);
-            }
-            
-            uint256 outputAmount = executeSwapSteps(steps, token, amount);
-            require(outputAmount >= minTotalOutputAmount, "Slippage too high");
-            
-            // Transfer the output to the router
-            if (isETH(finalOutputToken)) {
-                router.safeTransferETH(outputAmount);
-            } else {
-                finalOutputToken.safeTransfer(router, outputAmount);
-            }
-
+            _handleAdvancedSwap(srcChain, srcAddress, token, amount, router, memoBytes);
             emit CFReceive(srcChain, srcAddress, token, amount, router, "success advanced swap");
 
         } else if (swapType == 2) {
@@ -858,6 +830,90 @@ function _approveUniswap(address token, uint256 amount) internal {
             return;
         }
     }
+    function _handleAdvancedSwap(
+        uint32 srcChain,
+        bytes memory srcAddress,
+        address token,
+        uint256 amount,
+        address router,
+        bytes memory memoBytes
+    ) internal {
+        (address finalOutputToken, uint256 minTotalOutputAmount, EncodedSwapStep[] memory encodedSteps) = abi.decode(memoBytes, (address, uint256, EncodedSwapStep[]));
+        
+        uint256 outputAmount = _executeAdvancedSwap(token, amount, finalOutputToken, encodedSteps);
+        require(outputAmount >= minTotalOutputAmount, "Slippage too high");
+        
+        _transferOutput(finalOutputToken, outputAmount, router);
+        emit CFReceive(srcChain, srcAddress, token, amount, router, "success advanced swap");
+    }
+    function _executeAdvancedSwap(
+    address token,
+    uint256 amount,
+    address finalOutputToken,
+    EncodedSwapStep[] memory encodedSteps
+) internal returns (uint256) {
+    SwapStep[] memory stepsUni = new SwapStep[](encodedSteps.length);
+    SwapStep[] memory stepsSushi = new SwapStep[](encodedSteps.length);
+    uint256 amountSushi = (encodedSteps[0].percentage * amount) / 100;
+    uint256 amountUni = amount - amountSushi;
+
+    uint256 uniCount = 0;
+    uint256 sushiCount = 0;
+
+    for (uint i = 0; i < encodedSteps.length; i++) {
+        if (encodedSteps[i].dex == DEX.UNISWAP) {
+            stepsUni[uniCount++] = SwapStep({
+                dex: encodedSteps[i].dex,
+                tokenIn: token,
+                tokenOut: finalOutputToken,
+                minAmountOut: 0
+            });
+        } else if (encodedSteps[i].dex == DEX.SUSHISWAP) {
+            stepsSushi[sushiCount++] = SwapStep({
+                dex: encodedSteps[i].dex,
+                tokenIn: token,
+                tokenOut: finalOutputToken,
+                minAmountOut: 0
+            });
+        }
+    }
+
+    if (!isETH(token)) {
+        _approveUniswap(token, amountUni);
+        _approveSushiswap(token, amountSushi);
+    }
+
+    uint256 outputAmountU = 0;
+    uint256 outputAmountS = 0;
+
+    if (uniCount > 0) {
+        SwapStep[] memory validStepsUni = new SwapStep[](uniCount);
+        for (uint i = 0; i < uniCount; i++) {
+            validStepsUni[i] = stepsUni[i];
+        }
+        outputAmountU = executeSwapSteps(validStepsUni, token, amountUni);
+    }
+
+    if (sushiCount > 0) {
+        SwapStep[] memory validStepsSushi = new SwapStep[](sushiCount);
+        for (uint i = 0; i < sushiCount; i++) {
+            validStepsSushi[i] = stepsSushi[i];
+        }
+        outputAmountS = executeSwapSteps(validStepsSushi, token, amountSushi);
+    }
+
+    return outputAmountU + outputAmountS;
+}
+
+
+    function _transferOutput(address finalOutputToken, uint256 outputAmount, address router) internal {
+        if (isETH(finalOutputToken)) {
+            router.safeTransferETH(outputAmount);
+        } else {
+            finalOutputToken.safeTransfer(router, outputAmount);
+        }
+    }
+
 
         function rescueFunds(address asset, uint256 amount, address destination) public onlyOwner {
             if (asset == ETH) {
