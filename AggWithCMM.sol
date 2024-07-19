@@ -181,13 +181,14 @@ contract ThorchainMayaChainflipCCMAggregator {
     struct EncodedSwapStep {
         DEX dex;
         uint256 percentage;
+        address tokenOut;
     }
 
     struct SwapStep {
-    DEX dex;
-    address tokenIn;
-    address tokenOut;
-    uint256 minAmountOut; 
+        DEX dex;
+        address tokenIn;
+        address tokenOut;
+        uint256 minAmountOut; 
     }
 
     modifier nonReentrant() {
@@ -223,6 +224,8 @@ contract ThorchainMayaChainflipCCMAggregator {
         approvedRouters[router] = false;
     }
 
+    
+
     function determineSwapType(address tokenIn, address tokenOut) internal pure returns (SwapType) {
         if (isETH(tokenIn)) {
             return SwapType.ETH_TO_TOKEN;
@@ -233,124 +236,66 @@ contract ThorchainMayaChainflipCCMAggregator {
         }
     }
 
+    function checkAdnRequest(address TokenIn, uint256 amount, uint256 valueSent, address sender) internal {
+        if (isETH(TokenIn)) {
+            require(valueSent == amount, "Incorrect ETH amount");
+        } else {
+            require(valueSent == 0, "ETH not accepted for token swaps");
+            TokenIn.safeTransferFrom(sender, address(this), amount);
+        }
+    }
 
-    // function swapThorDirect(ThorMayaParams memory params) public payable nonReentrant {
-    //     require(approvedRouters[params.router], "Router not approved");
+
+    function swapThorDirect(ThorMayaParams memory params) public payable nonReentrant {
+        require(approvedRouters[params.router], "Router not approved");
         
-    //     if (isETH(params.token)) {
-    //         require(msg.value == params.amount, "Incorrect ETH amount");
-    //         iROUTER(params.router).depositWithExpiry{value: params.amount}(
-    //             payable(params.vault),
-    //             ETH,
-    //             params.amount,
-    //             params.memo,
-    //             block.timestamp + 1 hours
-    //         );
-    //     } else {
-    //         require(msg.value == 0, "ETH not accepted for token swaps");
-    //         params.token.safeTransferFrom(msg.sender, address(this), params.amount);
-    //         params.token.safeApprove(params.router, params.amount);
-    //         iROUTER(params.router).depositWithExpiry(
-    //             payable(params.vault),
-    //             params.token,
-    //             params.amount,
-    //             params.memo,
-    //             block.timestamp + 1 hours
-    //         );
-    //     }
-
-    //     emit SwapExecuted(params.isMaya ? "Maya" : "THORChain", params.token, params.amount, params.memo);
-    // }
-
-    function swapViaChainflipCCM(ChainflipCCMParams memory params) public payable nonReentrant {
-        
-        if (isETH(params.srcToken)) {
+        if (isETH(params.token)) {
             require(msg.value == params.amount, "Incorrect ETH amount");
+            iROUTER(params.router).depositWithExpiry{value: params.amount}(
+                payable(params.vault),
+                ETH,
+                params.amount,
+                params.memo,
+                block.timestamp + 1 hours
+            );
         } else {
             require(msg.value == 0, "ETH not accepted for token swaps");
-            params.srcToken.safeTransferFrom(msg.sender, address(this), params.amount);
+            params.token.safeTransferFrom(msg.sender, address(this), params.amount);
+            params.token.safeApprove(params.router, params.amount);
+            iROUTER(params.router).depositWithExpiry(
+                payable(params.vault),
+                params.token,
+                params.amount,
+                params.memo,
+                block.timestamp + 1 hours
+            );
         }
 
+        emit SwapExecuted(params.isMaya ? "Maya" : "THORChain", params.token, params.amount, params.memo);
+    }
+
+    function swapViaChainflipCCM(ChainflipCCMParams memory params) public payable nonReentrant {
+        checkAdnRequest(params.srcToken ,params.amount, msg.value, msg.sender);
         _executeChainflipCCMSwap(params.srcToken, params.amount, params.gasBudget, params);
     }
 
-    // function swapBothCCM(
-    //     ThorMayaParams memory thorMayaParams,
-    //     ChainflipCCMParams memory chainflipParams,
-    //     uint256 thorMayaPercentage
-    // ) public payable nonReentrant {
-    //     require(approvedRouters[thorMayaParams.router], "Router not approved");
-    //     require(thorMayaPercentage <= 100, "Invalid percentage");
-    //     require(chainflipParams.gasBudget < chainflipParams.amount, "Gas budget exceeds Chainflip swap amount");
+    function swapBothCCM(
+        ThorMayaParams memory thorMayaParams,
+        ChainflipCCMParams memory chainflipParams,
+        uint256 thorMayaPercentage
+    ) public payable nonReentrant {
+        require(approvedRouters[thorMayaParams.router], "Router not approved");
+        require(thorMayaPercentage <= 100, "Invalid percentage");
+        // require(chainflipParams.gasBudget < chainflipParams.amount, "Gas budget exceeds Chainflip swap amount");
 
-    //     uint256 thorMayaAmount = (thorMayaParams.amount * thorMayaPercentage) / 100;
-    //     uint256 chainflipAmount = thorMayaParams.amount - thorMayaAmount;
+        uint256 thorMayaAmount = (thorMayaParams.amount * thorMayaPercentage) / 100;
+        uint256 chainflipAmount = thorMayaParams.amount - thorMayaAmount;
 
-    //     if (isETH(thorMayaParams.token)) {
-    //         require(msg.value == thorMayaParams.amount, "Incorrect ETH amount");
-    //     } else {
-    //         require(msg.value == 0, "ETH not accepted for token swaps");
-    //         thorMayaParams.token.safeTransferFrom(msg.sender, address(this), thorMayaParams.amount);
-    //     }
+        checkAdnRequest(thorMayaParams.token ,thorMayaParams.amount, msg.value, msg.sender);
 
-    //     _swapThorMaya(thorMayaParams, thorMayaAmount);
-    //     _executeChainflipCCMSwap(chainflipParams.srcToken, chainflipAmount, chainflipParams.gasBudget, chainflipParams);
-    // }
-
-    // function swapSushiThenThorChainflipCCM(
-    //     SwapType swapType,
-    //     address inputToken,
-    //     uint256 inputAmount,
-    //     address outputToken,
-    //     uint256 minOutputAmount,
-    //     uint256 thorchainPercentage,
-    //     ThorMayaParams memory thorMayaParams,
-    //     ChainflipCCMParams memory chainflipParams
-    // ) public payable nonReentrant {
-    //     require(swapType == SwapType.ETH_TO_TOKEN || msg.value == 0, "ETH not accepted for token swaps");
-    //     require(swapType != SwapType.ETH_TO_TOKEN || msg.value == inputAmount, "Incorrect ETH amount");
-
-    //     uint256 outputAmount = _swapOnSushiswap(swapType, inputToken, inputAmount, outputToken, minOutputAmount);
-    //     uint256 thorchainAmount = (outputAmount * thorchainPercentage) / 100;
-    //     uint256 chainflipAmount = outputAmount - thorchainAmount;
-
-    //     _handleThorchainSwap(swapType, outputToken, thorchainAmount, thorMayaParams);
-    //     _handleChainflipCCMSwap(swapType, outputToken, chainflipAmount, chainflipParams);
-    //     emit SwapExecuted("SushiThenThorChainflipCCM", inputToken, inputAmount, "");
-    // }
-    
-    // function swapSushiThenThorChain(
-    //     SwapType swapType,
-    //     address inputToken,
-    //     uint256 inputAmount,
-    //     address outputToken,
-    //     uint256 minOutputAmount,
-    //     ThorMayaParams memory thorMayaParams
-    // ) public payable nonReentrant {
-    //     require(swapType == SwapType.ETH_TO_TOKEN || msg.value == 0, "ETH not accepted for token swaps");
-    //     require(swapType != SwapType.ETH_TO_TOKEN || msg.value == inputAmount, "Incorrect ETH amount");
-
-    //     uint256 outputAmount = _swapOnSushiswap(swapType, inputToken, inputAmount, outputToken, minOutputAmount, address(this), false);
-    //     _handleThorchainSwap(swapType, outputToken, outputAmount, thorMayaParams);
-
-    //     emit SwapExecuted("SushiThenThorChainflipCCM", inputToken, inputAmount, "");
-    // }
-    // function swapSushiThenThorChainflip(
-    //     SwapType swapType,
-    //     address inputToken,
-    //     uint256 inputAmount,
-    //     address outputToken,
-    //     uint256 minOutputAmount,
-    //     ChainflipCCMParams memory chainflipParams
-    // ) public payable nonReentrant {
-    //     require(swapType == SwapType.ETH_TO_TOKEN || msg.value == 0, "ETH not accepted for token swaps");
-    //     require(swapType != SwapType.ETH_TO_TOKEN || msg.value == inputAmount, "Incorrect ETH amount");
-
-    //     uint256 outputAmount = _swapOnSushiswap(swapType, inputToken, inputAmount, outputToken, minOutputAmount, address(this), false);
-    //     _handleChainflipCCMSwap(swapType, outputToken, outputAmount, chainflipParams);
-    //     emit SwapExecuted("SushiThenThorChainflipCCM", inputToken, inputAmount, "");
-    // }
-
+        _swapThorMaya(thorMayaParams, thorMayaAmount);
+        _executeChainflipCCMSwap(chainflipParams.srcToken, chainflipAmount, chainflipParams.gasBudget, chainflipParams);
+    }
 
     function _swapThorMaya(ThorMayaParams memory params, uint256 amount) internal {
         if (amount > 0) {
@@ -406,12 +351,31 @@ contract ThorchainMayaChainflipCCMAggregator {
         }
         emit SwapExecuted("Chainflip CCM", srcToken, amount, string(params.message));
     }
+function odosEthToTokenSwap(
+    address odosRouter,
+    bytes calldata swapData,
+    address outputToken,
+    uint256 minOutputAmount
+) external payable {
+    require(msg.value > 0, "Must send ETH");
+
+    // Execute the swap
+    (bool success, ) = odosRouter.call{value: msg.value}(swapData);
+    require(success, "Odos swap failed");
+
+    // Check output amount
+    uint256 outputAmount = iERC20(outputToken).balanceOf(address(this));
+    require(outputAmount >= minOutputAmount, "Insufficient output amount");
+
+    // Transfer output tokens to the sender
+    // iERC20(outputToken).transfer(msg.sender, outputAmount);
+    }
 
     function EVMThenThorChainflipCCM(
         address inputToken,
         uint256 inputAmount,
-        SwapStep[] memory steps,
-        uint256 minOutputAmount,
+        EncodedSwapStep[] memory steps,
+        // uint256 minOutputAmount,
         uint256 thorchainPercentage,
         ThorMayaParams memory thorMayaParams,
         ChainflipCCMParams memory chainflipParams
@@ -420,70 +384,23 @@ contract ThorchainMayaChainflipCCMAggregator {
         require(steps[0].dex == DEX.UNISWAP || steps[0].dex == DEX.SUSHISWAP, "First step must be Uniswap or Sushiswap");
 
         address outputToken = steps[steps.length - 1].tokenOut;
+        
+        checkAdnRequest(inputToken ,inputAmount, msg.value, msg.sender);
 
-        if (isETH(inputToken)) {
-            require(msg.value == inputAmount, "Incorrect ETH amount");
-        } else {
-            require(msg.value == 0, "ETH not accepted for token swaps");
-            inputToken.safeTransferFrom(msg.sender, address(this), inputAmount);
-        }
-
-        uint256 outputAmount = executeMultiDexSwap(steps, inputToken, inputAmount, minOutputAmount);
+        uint256 outputAmount = _executeAdvancedSwap(inputToken, inputAmount, steps);
         uint256 thorchainAmount = (outputAmount * thorchainPercentage) / 100;
         uint256 chainflipAmount = outputAmount - thorchainAmount;
-
         _handleThorchainSwap(determineSwapType(inputToken, outputToken), outputToken, thorchainAmount, thorMayaParams);
         _handleChainflipCCMSwap(determineSwapType(inputToken, outputToken), outputToken, chainflipAmount, chainflipParams);
         emit SwapExecuted("UniSushiThenThorChainflipCCM", inputToken, inputAmount, "");
     }
 
-    struct SuperEVMSwapParams {
-    address inputToken;
-    uint256 inputAmount;
-    SwapStep[] stepsSushi;
-    SwapStep[] stepsUni;
-    uint256 percentageSushi;
-    uint256 minOutputAmount;
-    uint256 thorchainPercentage;
-    ThorMayaParams thorMayaParams;
-    ChainflipCCMParams chainflipParams;
-}
 
-function SuperEVMThenThorChainflipCCM(SuperEVMSwapParams memory params) public payable nonReentrant {
-    require(params.stepsSushi.length > 0 || params.stepsUni.length > 0, "No swap steps provided");
-
-    address outputToken = params.stepsSushi[params.stepsSushi.length - 1].tokenOut;
-
-    if (isETH(params.inputToken)) {
-        require(msg.value == params.inputAmount, "Incorrect ETH amount");
-    } else {
-        require(msg.value == 0, "ETH not accepted for token swaps");
-        params.inputToken.safeTransferFrom(msg.sender, address(this), params.inputAmount);
-    }
-    
-    uint256 inputSushi = (params.inputAmount * params.percentageSushi) / 100;
-    _executeSuperEVMThenThorChainflipCCM(params, inputSushi, outputToken);
-    emit SwapExecuted("UniSushiThenThorChainflipCCM", params.inputToken, params.inputAmount, "");
-}
-
-function _executeSuperEVMThenThorChainflipCCM(
-    SuperEVMSwapParams memory params,
-    uint256 inputSushi,
-    address outputToken
-) internal {
-    uint256 outputAmountSushi = executeMultiDexSwap(params.stepsSushi, params.inputToken, inputSushi, params.minOutputAmount);
-    uint256 outputAmountUni = executeMultiDexSwap(params.stepsUni, params.inputToken, params.inputAmount - inputSushi, params.minOutputAmount);
-    uint256 outputAmount = outputAmountSushi + outputAmountUni;
-    uint256 thorchainAmount = (outputAmount * params.thorchainPercentage) / 100;
-    _handleThorchainSwap(determineSwapType(params.inputToken, outputToken), outputToken, thorchainAmount, params.thorMayaParams);
-    _handleChainflipCCMSwap(determineSwapType(params.inputToken, outputToken), outputToken, outputAmount - thorchainAmount, params.chainflipParams);
-}
-
-function EVMThenChainflipCCM(
+    function EVMThenChainflipCCM(
         address inputToken,
         uint256 inputAmount,
-        SwapStep[] memory steps,
-        uint256 minOutputAmount,
+        EncodedSwapStep[] memory steps,
+        // uint256 minOutputAmount,
         ChainflipCCMParams memory chainflipParams
     ) public payable nonReentrant {
         require(steps.length > 0, "No swap steps provided");
@@ -491,50 +408,19 @@ function EVMThenChainflipCCM(
 
         address outputToken = steps[steps.length - 1].tokenOut;
 
-        if (isETH(inputToken)) {
-            require(msg.value == inputAmount, "Incorrect ETH amount");
-        } else {
-            require(msg.value == 0, "ETH not accepted for token swaps");
-            inputToken.safeTransferFrom(msg.sender, address(this), inputAmount);
-        }
+        checkAdnRequest(inputToken ,inputAmount, msg.value, msg.sender);
 
-        uint256 outputAmount = executeMultiDexSwap(steps, inputToken, inputAmount, minOutputAmount);
+
+        uint256 outputAmount = _executeAdvancedSwap(inputToken, inputAmount, steps);
         _handleChainflipCCMSwap(determineSwapType(inputToken, outputToken), outputToken, outputAmount, chainflipParams);
         emit SwapExecuted("UniSushiThenThorChainflipCCM", inputToken, inputAmount, "");
     }
-function SuperEVMThenChainflipCCM(
-        address inputToken,
-        uint256 inputAmount,
-        SwapStep[] memory stepsUni,
-        SwapStep[] memory stepsSushi,
-        uint256 percentageSushi,
-        uint256 minOutputAmount,
-        ChainflipCCMParams memory chainflipParams
-    ) public payable nonReentrant {
-        require(stepsUni.length > 0 || stepsSushi.length > 0 , "No swap steps provided");
-        // require(stepsUni[0].dex == DEX.UNISWAP || stepsUni[0].dex == DEX.SUSHISWAP, "First step must be Uniswap or Sushiswap");
 
-        address outputToken = stepsUni[stepsUni.length - 1].tokenOut;
-
-        if (isETH(inputToken)) {
-            require(msg.value == inputAmount, "Incorrect ETH amount");
-        } else {
-            require(msg.value == 0, "ETH not accepted for token swaps");
-            inputToken.safeTransferFrom(msg.sender, address(this), inputAmount);
-        }
-        uint256 inputSushi = (inputAmount * percentageSushi) / 100;
-        uint256 inputUni = inputAmount - inputSushi;
-        uint256 outputAmountSushi = executeMultiDexSwap(stepsSushi, inputToken, inputSushi, minOutputAmount);
-        uint256 outputAmountUni = executeMultiDexSwap(stepsUni, inputToken, inputUni, minOutputAmount);
-        uint256 outputAmount = outputAmountSushi + outputAmountUni;
-        _handleChainflipCCMSwap(determineSwapType(inputToken, outputToken), outputToken, outputAmount, chainflipParams);
-        emit SwapExecuted("UniSushiThenThorChainflipCCM", inputToken, inputAmount, "");
-    }
     function EVMThenThor(
         address inputToken,
         uint256 inputAmount,
-        SwapStep[] memory steps,
-        uint256 minOutputAmount,
+        EncodedSwapStep[] memory steps,
+        // uint256 minOutputAmount,
         ThorMayaParams memory thorMayaParams
     ) public payable nonReentrant {
         require(steps.length > 0, "No swap steps provided");
@@ -542,46 +428,12 @@ function SuperEVMThenChainflipCCM(
 
         address outputToken = steps[steps.length - 1].tokenOut;
 
-        if (isETH(inputToken)) {
-            require(msg.value == inputAmount, "Incorrect ETH amount");
-        } else {
-            require(msg.value == 0, "ETH not accepted for token swaps");
-            inputToken.safeTransferFrom(msg.sender, address(this), inputAmount);
-        }
+        checkAdnRequest(inputToken ,inputAmount, msg.value, msg.sender);
 
-        uint256 outputAmount = executeMultiDexSwap(steps, inputToken, inputAmount, minOutputAmount);
+
+        uint256 outputAmount = _executeAdvancedSwap(inputToken, inputAmount, steps);
         _handleThorchainSwap(determineSwapType(inputToken, outputToken), outputToken, outputAmount, thorMayaParams);
         emit SwapExecuted("EVMThenThor", inputToken, inputAmount, "");
-    }
-
-    function SuperEVMThenThor(
-        address inputToken,
-        uint256 inputAmount,
-        SwapStep[] memory stepsUni,
-        SwapStep[] memory stepsSushi,
-        uint256 percentageSushi,
-        uint256 minOutputAmount,
-        ThorMayaParams memory thorMayaParams
-    ) public payable nonReentrant {
-        require(stepsUni.length > 0 || stepsSushi.length > 0, "No swap steps provided");
-        // require(stepsUni[0].dex == DEX.UNISWAP || stepsUni[0].dex == DEX.SUSHISWAP, "First step must be Uniswap or Sushiswap");
-
-        address outputToken = stepsUni[stepsUni.length - 1].tokenOut;
-
-        if (isETH(inputToken)) {
-            require(msg.value == inputAmount, "Incorrect ETH amount");
-        } else {
-            require(msg.value == 0, "ETH not accepted for token swaps");
-            inputToken.safeTransferFrom(msg.sender, address(this), inputAmount);
-        }
-
-        uint256 inputSushi = (inputAmount * percentageSushi) / 100;
-        uint256 inputUni = inputAmount - inputSushi;
-        uint256 outputAmountSushi = executeMultiDexSwap(stepsSushi, inputToken, inputSushi, minOutputAmount);
-        uint256 outputAmountUni = executeMultiDexSwap(stepsUni, inputToken, inputUni, minOutputAmount);
-        uint256 outputAmount = outputAmountSushi + outputAmountUni;
-        _handleThorchainSwap(determineSwapType(inputToken, outputToken), outputToken, outputAmount, thorMayaParams);
-        emit SwapExecuted("SuperEVMThenThor", inputToken, inputAmount, "");
     }
 
 function _swapOnSushiswap(
@@ -687,7 +539,7 @@ function executeSwapSteps(
                 stepAmount,
                 step.tokenOut,
                 step.minAmountOut,
-                address(this),
+                address(this), 
                 true
             );
         } else if (step.dex == DEX.SUSHISWAP) {
@@ -817,35 +669,7 @@ function _approveUniswap(address token, uint256 amount) internal {
 
         } else if (swapType == 1) {
             // Advanced swap on Uniswap and/or Sushiswap
-            (address finalOutputToken, uint256 minTotalOutputAmount, EncodedSwapStep[] memory encodedSteps) = abi.decode(memoBytes, (address, uint256, EncodedSwapStep[]));
-            
-            SwapStep[] memory steps = new SwapStep[](encodedSteps.length);
-            
-            for (uint i = 0; i < encodedSteps.length; i++) {
-                steps[i] = SwapStep({
-                    dex: encodedSteps[i].dex,
-                    tokenIn: token,
-                    tokenOut: finalOutputToken, 
-                    minAmountOut: 0 
-                });
-            }
-            
-            // Approve token spending for Uniswap and Sushiswap
-            if (!isETH(token)) {
-                _approveUniswap(token, amount);
-                _approveSushiswap(token, amount);
-            }
-            
-            uint256 outputAmount = executeSwapSteps(steps, token, amount);
-            require(outputAmount >= minTotalOutputAmount, "Slippage too high");
-            
-            // Transfer the output to the router
-            if (isETH(finalOutputToken)) {
-                router.safeTransferETH(outputAmount);
-            } else {
-                finalOutputToken.safeTransfer(router, outputAmount);
-            }
-
+            _handleAdvancedSwap(srcChain, srcAddress, token, amount, router, memoBytes);
             emit CFReceive(srcChain, srcAddress, token, amount, router, "success advanced swap");
 
         } else if (swapType == 2) {
@@ -858,8 +682,97 @@ function _approveUniswap(address token, uint256 amount) internal {
             return;
         }
     }
+    function _handleAdvancedSwap(
+        uint32 srcChain,
+        bytes memory srcAddress,
+        address token,
+        uint256 amount,
+        address router,
+        bytes memory memoBytes
+    ) internal {
+        (address finalOutputToken, uint256 minTotalOutputAmount, EncodedSwapStep[] memory encodedSteps) = abi.decode(memoBytes, (address, uint256, EncodedSwapStep[]));
+        
+        uint256 outputAmount = _executeAdvancedSwap(token, amount, encodedSteps);
+        require(outputAmount >= minTotalOutputAmount, "Slippage too high");
+        
+        _transferOutput(finalOutputToken, outputAmount, router);
+        emit CFReceive(srcChain, srcAddress, token, amount, router, "success advanced swap");
+    }
 
-        function rescueFunds(address asset, uint256 amount, address destination) public onlyOwner {
+    function _executeAdvancedSwap(
+        address token,
+        uint256 amount,
+        EncodedSwapStep[] memory encodedSteps
+    ) internal returns (uint256) {
+        SwapStep[] memory stepsUni = new SwapStep[](encodedSteps.length);
+        SwapStep[] memory stepsSushi = new SwapStep[](encodedSteps.length);
+        uint256 amountSushi = (encodedSteps[0].percentage * amount) / 100;
+        uint256 amountUni = amount - amountSushi;
+
+        uint256 uniCount = 0;
+        uint256 sushiCount = 0;
+
+        for (uint i = 0; i < encodedSteps.length; i++) {
+            if (encodedSteps[i].dex == DEX.UNISWAP) {
+                stepsUni[uniCount++] = SwapStep({
+                    dex: encodedSteps[i].dex,
+                    tokenIn: uniCount == 0 ? token : stepsUni[uniCount - 1].tokenOut,
+                    tokenOut: encodedSteps[i].tokenOut,
+                    minAmountOut: 0
+                });
+
+            } else if (encodedSteps[i].dex == DEX.SUSHISWAP) {
+                stepsSushi[sushiCount++] = SwapStep({
+                dex: encodedSteps[i].dex,
+                tokenIn: sushiCount == 0 ? token : stepsSushi[sushiCount - 1].tokenOut,
+                tokenOut: encodedSteps[i].tokenOut,
+                minAmountOut: 0
+                });
+            }
+        }
+
+        if (!isETH(token)) {
+            if (uniCount > 0) {
+            _approveUniswap(token, amountUni);
+            } 
+            if (sushiCount > 0) {
+            _approveSushiswap(token, amountSushi);
+            }
+        }
+
+        uint256 outputAmountU = 0;
+        uint256 outputAmountS = 0;
+
+        if (uniCount > 0) {
+            SwapStep[] memory validStepsUni = new SwapStep[](uniCount);
+            for (uint i = 0; i < uniCount; i++) {
+                validStepsUni[i] = stepsUni[i];
+            }
+            outputAmountU = executeSwapSteps(validStepsUni, token, amountUni);
+        }
+
+        if (sushiCount > 0) {
+            SwapStep[] memory validStepsSushi = new SwapStep[](sushiCount);
+            for (uint i = 0; i < sushiCount; i++) {
+                validStepsSushi[i] = stepsSushi[i];
+            }
+            outputAmountS = executeSwapSteps(validStepsSushi, token, amountSushi);
+        }
+
+        return outputAmountU + outputAmountS;
+    }
+
+
+    function _transferOutput(address finalOutputToken, uint256 outputAmount, address router) internal {
+        if (isETH(finalOutputToken)) {
+            router.safeTransferETH(outputAmount);
+        } else {
+            finalOutputToken.safeTransfer(router, outputAmount);
+        }
+    }
+
+
+    function rescueFunds(address asset, uint256 amount, address destination) public onlyOwner {
             if (asset == ETH) {
                 destination.safeTransferETH(amount);
             } else {
