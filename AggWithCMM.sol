@@ -438,12 +438,12 @@ function odosSwapThenChainflip(
     require(outputAmount >= minOutputAmount, "Insufficient output amount");
 
     // Handle the Chainflip CCM swap with the output token/ETH
-    _handleChainflipCCMSwap(
-        determineSwapType(outputToken, chainflipParams.srcToken),
-        outputToken,
-        outputAmount,
-        chainflipParams
-    );
+    // _handleChainflipCCMSwap(
+    //     determineSwapType(outputToken, chainflipParams.srcToken),
+    //     outputToken,
+    //     outputAmount,
+    //     chainflipParams
+    // );
 
     // Emit an event for the swap execution
     emit SwapExecuted("OdosThenChainflip", inputToken, inputAmount, string(chainflipParams.message));
@@ -528,6 +528,51 @@ function EVMThenThor(
 
     emit SwapExecuted("EVMThenThor", inputToken, inputAmount, "");
 }
+
+// function OdosThor(
+//     address inputToken,
+//     uint256 inputAmount,   
+//     address odosRouter,
+//     bytes calldata swapData,
+//     address outputToken, 
+//     ThorMayaParams memory thorMayaParams
+// ) public payable nonReentrant {
+//         bool isInputEth = isETH(inputToken);
+
+//     // Ensure the correct amount is sent
+//     if (isInputEth) {
+//         require(msg.value == inputAmount, "Incorrect ETH amount");
+//     } else {
+//         require(msg.value == 0, "ETH not accepted for token swaps");
+//         // Transfer tokens from the sender to this contract
+//         inputToken.safeTransferFrom(msg.sender, address(this), inputAmount);
+//         // Approve Odos router to spend the input tokens
+//         inputToken.safeApprove(odosRouter, inputAmount);
+//     }
+
+//     // Record the initial balance of the output token/ETH
+//     uint256 initialBalance;
+//     if (isETH(outputToken)) {
+//         initialBalance = address(this).balance;
+//     } else {
+//         initialBalance = iERC20(outputToken).balanceOf(address(this));
+//     }
+
+//     // Execute the swap using Odos router
+//     (bool success, ) = odosRouter.call{value: isInputEth ? inputAmount : 0}(swapData);
+//     require(success, "Odos swap failed");
+
+//     // Calculate the output amount
+//     uint256 outputAmount;
+//     if (isETH(outputToken)) {
+//         outputAmount = address(this).balance - initialBalance;
+//     } else {
+//         outputAmount = iERC20(outputToken).balanceOf(address(this)) - initialBalance;
+//     }
+//     require(outputAmount >= minOutputAmount, "Insufficient output amount");
+
+
+// }
 
 function _swapOnSushiswap(
     SwapType swapType,
