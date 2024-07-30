@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.22;
+pragma solidity >=0.8.2 <0.9.0;
 
 import "./SafeTransferLib.sol";
 
@@ -19,7 +19,7 @@ interface iUNISWAP {
     ) external payable returns (uint[] memory amounts);
 }
 
-contract THORChainETHAggregator {
+contract THOROutETH {
     using SafeTransferLib for address;
 
     address private constant ETH = address(0);
@@ -52,39 +52,31 @@ contract THORChainETHAggregator {
 
     receive() external payable {}
 
-    function swapOut(
-        address token,
-        address to,
-        uint256 amountOutMin
-    ) public payable nonReentrant {
-        uint256 amount = msg.value;
+function swapOut(
+    address token,
+    address to,
+    uint256 amountOutMin
+) public payable nonReentrant {
+    uint256 amount = msg.value;
+    require(amount > 0, "Must send ETH");
 
-        if (token == ETH) {
-            // If the token is ETH, just transfer it
-            (bool success, ) = payable(to).call{value: amount}("");
-            require(success, "ETH transfer failed");
-        } else {
-            address[] memory path = new address[](2);
-            path[0] = WETH;
-            path[1] = token;
+    address[] memory path = new address[](2);
+    path[0] = WETH;
+    path[1] = token;
 
-            try swapRouter.swapExactETHForTokens{value: amount}(
-                amountOutMin,
-                path,
-                to,
-                type(uint).max
-            ) returns (uint[] memory) {
-                // Swap successful
-            } catch {
-                // If swap fails, send ETH to the recipient
-                (bool ethSuccess, ) = payable(to).call{value: amount}("");
-                require(ethSuccess, "ETH transfer failed after swap failure");
-            }
-        }
+    // Perform the swap for both ETH and non-ETH cases
+    uint[] memory amounts = swapRouter.swapExactETHForTokens{value: amount}(
+        amountOutMin,
+        path,
+        to,
+        type(uint).max
+    );
 
-        emit SwapOut(token, to, amount, amountOutMin);
-    }
+    // Check if the swap met the minimum output requirement
+    require(amounts[1] >= amountOutMin, "Insufficient output amount");
 
+    emit SwapOut(token, to, amount, amountOutMin);
+}
     function rescueFunds(
         address asset,
         uint256 amount,

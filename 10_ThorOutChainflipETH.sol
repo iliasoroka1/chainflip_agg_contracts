@@ -18,7 +18,7 @@ interface iCHAINFLIP_VAULT {
     ) external payable;
 }
 
-contract THORChainChainflipAggregator {
+contract THORChainOutARB {
     using SafeTransferLib for address;
 
     address private constant ETH = address(0);
@@ -33,7 +33,7 @@ contract THORChainChainflipAggregator {
     // Chainflip Asset Mapping
     mapping(address => uint32) public assetToChainflipID;
 
-    // Chainflip Chain Mapping based on asset ID
+    // Chainflip Chain Mapping 
     mapping(uint32 => uint32) public assetToChainID;
 
     modifier nonReentrant() {
@@ -89,7 +89,7 @@ contract THORChainChainflipAggregator {
                 dstChain,
                 abi.encodePacked(to),
                 dstToken,
-                "" // cfParameters (empty for now)
+                "" 
             );
 
         emit SwapOut(token, to, amount, amountOutMin);

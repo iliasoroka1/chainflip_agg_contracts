@@ -96,7 +96,7 @@ interface iROUTER {
 }
 
 
-contract ThorchainAggregatorExp {
+contract ThorchainAggregatorSU {
     iSUSHISWAP public sushiRouter;
     iUNISWAP public uniRouter;
 
@@ -127,15 +127,12 @@ contract ThorchainAggregatorExp {
 
 
     // Struct definitions for various swap parameters
-    struct ThorMayaParams {
+   struct ThorMayaParams {
         address vault;
         address router;
         address token;
-        uint256 amount;
         string memo;
-        bool isMaya;
     }
-
 
     struct EncodedSwapStep {
         DEX dex;
@@ -235,7 +232,7 @@ function _swapThorMaya(ThorMayaParams memory params, uint256 amount) internal {
             );
         }
         // Emit an event to log the swap execution
-        emit SwapExecuted(params.isMaya ? "Maya" : "THORChain", params.token, amount, params.memo);
+        emit SwapExecuted("THORChain", params.token, amount, params.memo);
     }
 }
 
@@ -251,11 +248,11 @@ function EVMThenThor(
     require(steps[0].dex == DEX.UNISWAP || steps[0].dex == DEX.SUSHISWAP, "First step must be Uniswap or Sushiswap");
 
     address outputToken = steps[steps.length - 1].tokenOut;
+    checkAdnRequest(inputToken, inputAmount, msg.value, msg.sender);
     // Execute the EVM-compatible DEX swaps
     uint256 outputAmount = _executeAdvancedSwap(inputToken, inputAmount, steps);
 
     // Check and request appropriate tokens/ETH for the swap
-    checkAdnRequest(inputToken, inputAmount, msg.value, msg.sender);
 
     // Handle THORChain swap with the output
     _handleThorchainSwap(determineSwapType(inputToken, outputToken), outputToken, outputAmount, thorMayaParams);
@@ -282,7 +279,6 @@ function _approveUniswap(address token, uint256 amount) internal {
         ThorMayaParams memory params
     ) internal {
         params.token = (swapType == SwapType.TOKEN_TO_ETH) ? ETH : outputToken;
-        params.amount = amount;
         _swapThorMaya(params, amount);
     }
 
