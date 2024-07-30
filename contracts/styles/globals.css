@@ -1,0 +1,408 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Incorporating a font that has a more Japanese calligraphy feel */
+  @font-face {
+    font-family: 'Alliance No.1';
+    src: url('/font/AllianceNo.1-Regular.otf') format('opentype');
+    font-weight: 400;
+    font-display: swap;
+  }
+}
+
+body {
+  color: rgb(255, 255, 255, 0.9);
+  user-select: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 23px;
+  /* Retaining your background comment for future reference */
+  /* background: url('/images/washi-texture.png') repeat fixed; */
+}
+
+/* REMOVE NUMBER UP/DOWN BUTTONS */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+  /* Custom SVG arrow */
+  .arrow-svg {
+    height: 16px;
+    width: auto;
+  }
+
+  /* Enhance the hover state */
+  .step:hover {
+    background-color: rgba(237, 242, 247, 1); /* A light gray background */
+    transition: background-color 0.3s ease-in-out;
+  }
+
+  /* Tooltip styling */
+  .tooltip {
+    position: relative;
+    display: inline-block;
+    border-bottom: 1px dotted black;
+  }
+
+  .tooltip .tooltiptext {
+    visibility: hidden;
+    width: 120px;
+    background-color: black;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px 0;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -60px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+  }
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #ffffff #1e1f25;
+}
+
+/* Chrome, Edge and Safari */
+*::-webkit-scrollbar {
+  width: 5px;
+  width: 5px;
+}
+*::-webkit-scrollbar-track {
+  border-radius: 20px;
+  background-color: #1e1f25;
+}
+
+*::-webkit-scrollbar-track:hover {
+  background-color: #1e1f25;
+}
+
+*::-webkit-scrollbar-track:active {
+  background-color: #1e1f25;
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 20px;
+  background-color: #ffffff;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #B5B5B5;
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background-color: #B5B5B5;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.complex-shadow {
+  /* Adjusting shadow to a more subtle, soft glow */
+  box-shadow: rgba(108, 206, 255, 0.4) 0px 0px 10px 1px;
+}
+
+input[type='range'] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  margin-right: 20px;
+  height: 4px;
+  background: #191B1F;
+  border-radius: 5px;
+  background-image: linear-gradient(#ffffff, rgb(255, 255, 255));
+  background-repeat: no-repeat;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  border: 0;
+  height: 18px;
+  width: 18px;
+  border-radius: 25px;
+  background: #ffffff;
+  cursor: pointer;
+  -webkit-appearance: none;
+}
+
+input[type='range']:-moz-range-thumb {
+  background: #f8f8f8;
+}
+
+.settings-container {
+  background-color: #2a3a4b; /* Deep navy background */
+  color: #cfd8dc; /* Soft gray for text */
+  border-radius: 8px; /* Rounded corners for a modern feel */
+  padding: 16px; /* Spacing inside the container */
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.5); /* Subtle shadow for depth */
+}
+
+.setting-option {
+  background: linear-gradient(120deg, #F6BDD1, #5C6BC0); /* Gradient from sakura pink to twilight purple */
+  color: #1c1e26; /* Dark text for readability */
+  border: none; /* No border for a cleaner look */
+  border-radius: 20px; /* Rounded buttons */
+  padding: 8px 16px; /* Padding for the buttons */
+  font-weight: bold; /* Bold font for button text */
+}
+
+/* Styles for the switches */
+.switch {
+  /* Positioning and sizing here */
+}
+
+.switch-track {
+  background: #445; /* Dark track for 'off' state */
+  border-radius: 9999px; /* Fully rounded ends of the switch */
+}
+
+.switch-thumb {
+  background: #F6BDD1; /* Sakura pink for 'on' state */
+  border-radius: 9999px; /* Fully rounded switch thumb */
+}
+
+.chart-container {
+  display: flex;
+  justify-content: center; /* This will center the chart horizontally */
+  align-items: center; /* This will center the chart vertically */
+  padding: 20px;
+  margin-top: 20px; /* Adjust the top margin to push it down */
+  background-color: #1e1e1e; /* Background color similar to your app's scheme */
+  border-radius: 10px; /* Soften the edges with a border radius */
+}
+
+.chart-controls {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px;
+}
+
+.visx-curves-demo {
+  font-family: 'Your Font', sans-serif; /* Match the font to your app's style */
+  color: #ffffff; /* Choose a color that matches your app's design */
+}
+
+.three-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1; /* Ensure it stays in the background */
+}
+
+.content {
+  position: relative;
+  z-index: 1; /* Higher than the Three.js canvas */
+  opacity: 0.1; /* Slightly transparent to see the Three.js canvas */
+  /* Add more styling as needed */
+}
+
+.interval-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.interval-label {
+  margin-bottom: 10px;
+}
+
+.interval-slider  {
+  width: 60%;
+}
+
+.default-intervals{
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.interval-button{
+  margin: 0 10px;
+  padding: 10px 20px;
+  border: none;
+  background-color: #4CAF50; /* Green */
+  color: white;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  transition-duration: 0.4s;
+  cursor: pointer;
+}
+
+.interval-button:hover{
+  background-color: #45a049;
+}
+
+.careers_bg {
+  background: #A1C1D6 no-repeat;
+  width: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-position-x: center;
+  background-position-y: 52%;
+  background-size: cover;
+  position: absolute;
+  top: 0;
+  height: 1200px;
+  z-index: 0;
+}
+
+.careers_bg:after {
+  content: '';
+  position: absolute;
+  background: radial-gradient(100% 100% at 50% 0%, rgba(255, 255, 255, 0) 53.01%, #FFFFFF 100%);
+  width: 100%;
+  height: 500px;
+}
+
+.container {
+  max-width: 1140px;
+  padding: 0 32px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.careers .sub_intro {
+  position: absolute;
+  text-align: center;
+  padding: 0 32px;
+  margin-top: 40px;
+  transform: translateX(-50%);
+  left: 50%;
+  width: calc(100% - 64px);
+  max-width: 1140px;
+}
+
+.careers .sub_intro img {
+  width: 100%;
+  max-width: 1042px;
+  margin: 48px 0 0 0;
+}
+
+.learn .sub_intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 40px 0 0 0;
+}
+
+.learn .sub_intro img {
+  width: 100%;
+  max-width: 1012px;
+}
+
+.learn .sub_intro .falling {
+  width: 10%;
+  margin: -180px 0 48px -4%;
+}
+
+.careers .sub_intro p {
+  max-width: 480px;
+  margin-bottom: 8px;
+}
+
+.sub_intro {
+  z-index: 5;
+  position: relative;
+}
+
+.sub_intro p {
+  max-width: 560px;
+  font-style: normal;
+  font-weight: 300;
+  font-size: 21px;
+  line-height: 35px;
+  margin: 0 auto;
+}
+
+
+.careers .sub_intro {
+  position: absolute;
+  text-align: center;
+  padding: 0 32px;
+  margin-top: 40px;
+  transform: translateX(-50%);
+  left: 50%;
+  width: calc(100% - 64px);
+  max-width: 1140px;
+}
+
+.careers .sub_intro img {
+  width: 100%;
+  max-width: 1042px;
+  margin: 48px 0 0 0;
+}
+
+.buttons {
+  display: inline-flex;
+  grid-gap: 20px;
+  margin: 32px auto 0 auto;
+
+}
+
+.buttons a {
+  background: #FFFFFF;
+  box-shadow: 0px 1px 1px rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 20px;
+  font-weight: 500;
+  font-size: 15px;
+  line-height: 18px;
+}
+
+.buttons a.secondary {
+  background: rgba(0, 0, 0, 0.08);
+  box-shadow: none;
+}
+
+.buttons a.secondary:after {
+  content: "";
+  display: inline-block;
+  height: 16px;
+  width: 16px;
+  /* background: url(../icons/outlink.svg) no-repeat; */
+  margin-left: 20px;
+}
+
+.careers_space a {
+  font-size: 15px;
+  line-height: 18px;
+  left: 32px;
+  bottom: 32px;
+  z-index: 999;
+  color: rgba(0, 0, 0, 0.4);
+  margin-bottom: 19px;
+  display: block;
+}
+
+.careers_space a svg {
+  margin-left: 8px;
+}
+
+.careers_space {
+  height: 1100px;
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
