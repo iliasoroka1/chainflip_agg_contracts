@@ -76,7 +76,7 @@ interface iCHAINFLIP_VAULT {
     ) external;
 }
 
-contract ThorchainMayaChainflipCCMAggregator {
+contract ChainflipCCMAggregatorOdos {
 
     using SafeTransferLib for address;
 

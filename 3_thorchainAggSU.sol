@@ -96,7 +96,7 @@ interface iROUTER {
 }
 
 
-contract ThorchainAggregatorExp {
+contract ThorchainAggregatorSU {
     iSUSHISWAP public sushiRouter;
     iUNISWAP public uniRouter;
 
@@ -127,15 +127,12 @@ contract ThorchainAggregatorExp {
 
 
     // Struct definitions for various swap parameters
-    struct ThorMayaParams {
+   struct ThorMayaParams {
         address vault;
         address router;
         address token;
-        uint256 amount;
         string memo;
-        bool isMaya;
     }
-
 
     struct EncodedSwapStep {
         DEX dex;
@@ -211,43 +208,6 @@ contract ThorchainAggregatorExp {
         }
     }
 
-// Function to perform a direct swap on THORChain or Maya
-function swapThorDirect(ThorMayaParams memory params) public payable nonReentrant {
-    // Ensure the router is approved for use
-    require(approvedRouters[params.router], "Router not approved");
-    
-    if (isETH(params.token)) {
-        // For ETH swaps, ensure the sent value matches the swap amount
-        require(msg.value == params.amount, "Incorrect ETH amount");
-        // Call the router's depositWithExpiry function with ETH value
-        iROUTER(params.router).depositWithExpiry{value: params.amount}(
-            payable(params.vault),
-            ETH,
-            params.amount,
-            params.memo,
-            block.timestamp + 1 hours // Set expiration to 1 hour from now
-        );
-    } else {
-        // For token swaps, ensure no ETH is sent
-        require(msg.value == 0, "ETH not accepted for token swaps");
-        // Transfer tokens from sender to this contract
-        params.token.safeTransferFrom(msg.sender, address(this), params.amount);
-        // Approve the router to spend the tokens
-        params.token.safeApprove(params.router, params.amount);
-        // Call the router's depositWithExpiry function for token swap
-        iROUTER(params.router).depositWithExpiry(
-            payable(params.vault),
-            params.token,
-            params.amount,
-            params.memo,
-            block.timestamp + 1 hours // Set expiration to 1 hour from now
-        );
-    }
-
-    // Emit an event to log the swap execution
-    emit SwapExecuted(params.isMaya ? "Maya" : "THORChain", params.token, params.amount, params.memo);
-}
-
 // Internal function to execute the THORChain/Maya portion of a swap
 function _swapThorMaya(ThorMayaParams memory params, uint256 amount) internal {
     if (amount > 0) {
@@ -272,7 +232,7 @@ function _swapThorMaya(ThorMayaParams memory params, uint256 amount) internal {
             );
         }
         // Emit an event to log the swap execution
-        emit SwapExecuted(params.isMaya ? "Maya" : "THORChain", params.token, amount, params.memo);
+        emit SwapExecuted("THORChain", params.token, amount, params.memo);
     }
 }
 
@@ -288,11 +248,11 @@ function EVMThenThor(
     require(steps[0].dex == DEX.UNISWAP || steps[0].dex == DEX.SUSHISWAP, "First step must be Uniswap or Sushiswap");
 
     address outputToken = steps[steps.length - 1].tokenOut;
+    checkAdnRequest(inputToken, inputAmount, msg.value, msg.sender);
     // Execute the EVM-compatible DEX swaps
     uint256 outputAmount = _executeAdvancedSwap(inputToken, inputAmount, steps);
 
     // Check and request appropriate tokens/ETH for the swap
-    checkAdnRequest(inputToken, inputAmount, msg.value, msg.sender);
 
     // Handle THORChain swap with the output
     _handleThorchainSwap(determineSwapType(inputToken, outputToken), outputToken, outputAmount, thorMayaParams);
@@ -319,7 +279,6 @@ function _approveUniswap(address token, uint256 amount) internal {
         ThorMayaParams memory params
     ) internal {
         params.token = (swapType == SwapType.TOKEN_TO_ETH) ? ETH : outputToken;
-        params.amount = amount;
         _swapThorMaya(params, amount);
     }
 
@@ -329,68 +288,6 @@ function _approveUniswap(address token, uint256 amount) internal {
         }
     }
 
-    // function _executeAdvancedSwap(
-    //     address token,
-    //     uint256 amount,
-    //     EncodedSwapStep[] memory encodedSteps
-    // ) internal returns (uint256) {
-    //     SwapStep[] memory stepsUni = new SwapStep[](encodedSteps.length);
-    //     SwapStep[] memory stepsSushi = new SwapStep[](encodedSteps.length);
-    //     uint256 amountSushi = (encodedSteps[0].percentage * amount) / 100;
-    //     uint256 amountUni = amount - amountSushi;
-
-    //     uint256 uniCount = 0;
-    //     uint256 sushiCount = 0;
-
-    //     for (uint i = 0; i < encodedSteps.length; i++) {
-    //         if (encodedSteps[i].dex == DEX.UNISWAP) {
-    //             stepsUni[uniCount++] = SwapStep({
-    //                 dex: encodedSteps[i].dex,
-    //                 tokenIn: uniCount == 0 ? token : stepsUni[uniCount - 1].tokenOut,
-    //                 tokenOut: encodedSteps[i].tokenOut,
-    //                 minAmountOut: 0
-    //             });
-
-    //         } else if (encodedSteps[i].dex == DEX.SUSHISWAP) {
-    //             stepsSushi[sushiCount++] = SwapStep({
-    //             dex: encodedSteps[i].dex,
-    //             tokenIn: sushiCount == 0 ? token : stepsSushi[sushiCount - 1].tokenOut,
-    //             tokenOut: encodedSteps[i].tokenOut,
-    //             minAmountOut: 0
-    //             });
-    //         }
-    //     }
-
-    //     if (!isETH(token)) {
-    //         if (uniCount > 0) {
-    //         _approveUniswap(token, amountUni);
-    //         } 
-    //         if (sushiCount > 0) {
-    //         _approveSushiswap(token, amountSushi);
-    //         }
-    //     }
-
-    //     uint256 outputAmountU = 0;
-    //     uint256 outputAmountS = 0;
-
-    //     if (uniCount > 0) {
-    //         SwapStep[] memory validStepsUni = new SwapStep[](uniCount);
-    //         for (uint i = 0; i < uniCount; i++) {
-    //             validStepsUni[i] = stepsUni[i];
-    //         }
-    //         outputAmountU = executeSwapSteps(validStepsUni, token, amountUni);
-    //     }
-
-    //     if (sushiCount > 0) {
-    //         SwapStep[] memory validStepsSushi = new SwapStep[](sushiCount);
-    //         for (uint i = 0; i < sushiCount; i++) {
-    //             validStepsSushi[i] = stepsSushi[i];
-    //         }
-    //         outputAmountS = executeSwapSteps(validStepsSushi, token, amountSushi);
-    //     }
-
-    //     return outputAmountU + outputAmountS;
-    // }
 function _swapOnSushiswap(
     address[] memory path,
     uint256 inputAmount,

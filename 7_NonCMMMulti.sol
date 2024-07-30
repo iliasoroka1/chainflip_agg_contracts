@@ -168,20 +168,7 @@ contract ThorchainMayaChainflipCCMAggregator {
         address vault;
         address router;
         address token;
-        uint256 amount;
         string memo;
-        bool isMaya;
-    }
-
-    struct ChainflipCCMParams {
-        uint32 dstChain;
-        bytes dstAddress;
-        uint32 dstToken;
-        address srcToken;
-        uint256 amount;
-        bytes message;
-        uint256 gasBudget;
-        bytes cfParameters;
     }
 
     struct ChainflipParams {
@@ -301,7 +288,7 @@ function _swapThorMaya(ThorMayaParams memory params, uint256 amount) internal {
             );
         }
         // Emit an event to log the swap execution
-        emit SwapExecuted(params.isMaya ? "Maya" : "THORChain", params.token, amount, params.memo);
+        emit SwapExecuted("THORChain", params.token, amount, params.memo);
     }
 }
 
@@ -329,7 +316,7 @@ function _executeChainflipSwap(ChainflipParams memory params, uint256 amount) in
         }
     }
 
-function EVMThenThorMayaChainflipCCM(
+function EVMThenThorMayaChainflip(
     address inputToken,
     uint256 inputAmount,
     EncodedSwapStep[] memory steps,
@@ -358,13 +345,11 @@ function EVMThenThorMayaChainflipCCM(
     // Handle THORChain swap
     if (thorchainPercentage > 0) {
     thorMayaParams.token = outputToken;
-    thorMayaParams.amount = thorchainAmount;
     _swapThorMaya(thorMayaParams, thorchainAmount);
     } 
 
     if (mayaPercentage > 0 ){
     MayaParams.token = outputToken;
-    MayaParams.amount = MayaAmount;
     _swapThorMaya(MayaParams, MayaAmount);
     }
      if (chainflipAmount > 0){
@@ -425,10 +410,10 @@ function odosSwapThenChainflipMayaThor(
 
     // Handle THORChain swap
     if (thorchainPercentage > 0) {
-    _handleThorchainSwap(thorMayaParams.token, thorMayaParams.amount, thorMayaParams);
+    _handleThorchainSwap(thorMayaParams.token, thorchainAmount, thorMayaParams);
     } 
     if (mayaPercentage > 0 ){
-    _handleThorchainSwap(MayaParams.token, MayaParams.amount, MayaParams);
+    _handleThorchainSwap(MayaParams.token, MayaAmount, MayaParams);
     }
      if (chainflipAmount > 0){
     _executeChainflipSwap(chainflipParams, chainflipAmount);
@@ -444,7 +429,6 @@ function _handleThorchainSwap(
         ThorMayaParams memory params
     ) internal {
         params.token = outputToken;
-        params.amount = amount;
         _swapThorMaya(params, amount);
     }
 
@@ -517,69 +501,6 @@ function _approveUniswap(address token, uint256 amount) internal {
         }
     }
 
-
-    // function _executeAdvancedSwap(
-    //     address token,
-    //     uint256 amount,
-    //     EncodedSwapStep[] memory encodedSteps
-    // ) internal returns (uint256) {
-    //     SwapStep[] memory stepsUni = new SwapStep[](encodedSteps.length);
-    //     SwapStep[] memory stepsSushi = new SwapStep[](encodedSteps.length);
-    //     uint256 amountSushi = (encodedSteps[0].percentage * amount) / 100;
-    //     uint256 amountUni = amount - amountSushi;
-
-    //     uint256 uniCount = 0;
-    //     uint256 sushiCount = 0;
-
-    //     for (uint i = 0; i < encodedSteps.length; i++) {
-    //         if (encodedSteps[i].dex == DEX.UNISWAP) {
-    //             stepsUni[uniCount++] = SwapStep({
-    //                 dex: encodedSteps[i].dex,
-    //                 tokenIn: uniCount == 0 ? token : stepsUni[uniCount - 1].tokenOut,
-    //                 tokenOut: encodedSteps[i].tokenOut,
-    //                 minAmountOut: 0
-    //             });
-
-    //         } else if (encodedSteps[i].dex == DEX.SUSHISWAP) {
-    //             stepsSushi[sushiCount++] = SwapStep({
-    //             dex: encodedSteps[i].dex,
-    //             tokenIn: sushiCount == 0 ? token : stepsSushi[sushiCount - 1].tokenOut,
-    //             tokenOut: encodedSteps[i].tokenOut,
-    //             minAmountOut: 0
-    //             });
-    //         }
-    //     }
-
-    //     if (!isETH(token)) {
-    //         if (uniCount > 0) {
-    //         _approveUniswap(token, amountUni);
-    //         } 
-    //         if (sushiCount > 0) {
-    //         _approveSushiswap(token, amountSushi);
-    //         }
-    //     }
-
-    //     uint256 outputAmountU = 0;
-    //     uint256 outputAmountS = 0;
-
-    //     if (uniCount > 0) {
-    //         SwapStep[] memory validStepsUni = new SwapStep[](uniCount);
-    //         for (uint i = 0; i < uniCount; i++) {
-    //             validStepsUni[i] = stepsUni[i];
-    //         }
-    //         outputAmountU = executeSwapSteps(validStepsUni, token, amountUni);
-    //     }
-
-    //     if (sushiCount > 0) {
-    //         SwapStep[] memory validStepsSushi = new SwapStep[](sushiCount);
-    //         for (uint i = 0; i < sushiCount; i++) {
-    //             validStepsSushi[i] = stepsSushi[i];
-    //         }
-    //         outputAmountS = executeSwapSteps(validStepsSushi, token, amountSushi);
-    //     }
-
-    //     return outputAmountU + outputAmountS;
-    // }
     function _swapOnSushiswap(
     address[] memory path,
     uint256 inputAmount,

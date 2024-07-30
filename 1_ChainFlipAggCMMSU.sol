@@ -107,7 +107,7 @@ interface iCHAINFLIP_VAULT {
     ) external;
 }
 
-contract ThorchainMayaChainflipCCMAggregator {
+contract ChainflipCCMAggregatorSU {
     iSUSHISWAP public sushiRouter;
     iUNISWAP public uniRouter;
 
