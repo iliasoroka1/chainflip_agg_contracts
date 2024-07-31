@@ -428,13 +428,14 @@ const [recipient, setRecipient] = useState<string>('');
               const approveTx = await usdtContract.approve(contract, evmInputs?.inputAmount);
               await approveTx.wait();
               }
-          tx = await contract.odosSwapThenChainflip(
+          tx = await contract.odosSwapThenChainflipCMM(
             odosInputs?.odosRouter,
             odosInputs?.SwapData,
             odosInputs?.inputToken,
             odosInputs?.outputToken,
             odosInputs?.inputAmount,
             odosInputs?.minOutputAmount,
+            chainflipParams,
             { value: isEthSwap ? odosInputs?.inputAmount : 0 }
           );
           break;
@@ -484,6 +485,14 @@ const [recipient, setRecipient] = useState<string>('');
             odosInputs?.outputToken,
             odosInputs?.inputAmount,
             odosInputs?.minOutputAmount,
+            {
+              dstChain: chainflipParams.dstChain,
+              dstAddress: chainflipParams.dstAddress,
+              dstToken: chainflipParams.dstToken,
+              srcToken: chainflipParams.srcToken,
+              amount: chainflipParams.amount, 
+              cfParameters: chainflipParams.cfParameters
+            },
             { value: isEthSwap ? odosInputs?.inputAmount : 0 }
           );
           break;
@@ -515,7 +524,16 @@ const [recipient, setRecipient] = useState<string>('');
               );
               break;
               case 'trippleSwap':
-                tx = await contract.swapTrippleCCM(
+                tx = await contract.EVMThenThorMayaChainflip(
+                  evmInputs?.inputToken,
+                  evmInputs?.inputAmount,
+                  swapSteps?.map(step => ({
+                    dex: step?.dex,
+                    percentage: step?.percentage.toString(),
+                    tokenOut: step?.tokenOut
+                  })),
+                  parseInt(thorchainPercentage),
+                  parseInt(mayaPercentage),
                   {
                     vault: thorParams.vault,
                     router: thorParams.router,
@@ -528,10 +546,15 @@ const [recipient, setRecipient] = useState<string>('');
                     token: mayaParams.asset,
                     memo: mayaParams.memo,
                   },
-                  chainflipParams,
-                  amountTripple,
-                  parseInt(thorchainPercentage),
-                  parseInt(mayaPercentage)
+                  {
+                    dstChain: chainflipParams.dstChain,
+                    dstAddress: chainflipParams.dstAddress,
+                    dstToken: chainflipParams.dstToken,
+                    srcToken: chainflipParams.srcToken,
+                    amount: chainflipParams.amount, 
+                    cfParameters: chainflipParams.cfParameters
+                  },
+                  { value: isEthSwap ? evmInputs?.inputAmount : 0 }
                 );
                 break;
                     default:
@@ -641,12 +664,10 @@ const [recipient, setRecipient] = useState<string>('');
             <option value="">Select a function</option>
             <option value="swapViaChainflipCCM">SwapViaChainflipCCM</option>
             <option value="EVMThenChainflipCCM">EVMThenChainflipCCM</option>
-            <option value="odosSwapThenChainflip">odosSwapThenChainflipCMM</option>
+            <option value="odosSwapThenChainflipCMM">odosSwapThenChainflipCMM</option>
             <option value="EVMThenChainflip">EVMThenChainflip</option>
-            <option value="odosSwapThenChainflip">odosSwapThenChainflip </option>
             <option value="EVMthenThor">EVMthenThor</option>
-            <option value="trippleSwap">trippleSwap</option>
-            <option value="odosSwapThenChainflipMayaThor">Odos Swap Then Chainflip Maya Thor</option>
+            <option value="EVMThenThorMayaChainflip">EVMThenThorMayaChainflip</option>
           </Select>
         </FormControl>
         <Heading as="h2" size="md" mb={4}>Predefined Scenarios</Heading>
@@ -949,7 +970,7 @@ const [recipient, setRecipient] = useState<string>('');
         </>
       )}
 
-      {selectedFunction !== 'EVMthenThor' && (
+      {(selectedFunction !== 'EVMthenThor' ) && (
           <VStack spacing={4} align="stretch">
           <Heading as="h2" size="md" mb={4}>Chainflip CCM Parameters</Heading>
             <FormControl>
@@ -972,6 +993,10 @@ const [recipient, setRecipient] = useState<string>('');
               <FormLabel>Amount</FormLabel>
               <Input name="amount" value={chainflipParams.amount} onChange={handleChainflipInputChange} />
             </FormControl>
+            </VStack>
+  )}
+  {(selectedFunction === 'swapViaChainflipCCM' || selectedFunction === 'EVMThenChainflipCCM' || selectedFunction === 'odosSwapThenChainflipCMM') && (
+              <VStack spacing={4} align="stretch">
             <FormControl>
               <FormLabel>Gas Budget</FormLabel>
               <Input name="gasBudget" value={chainflipParams.gasBudget} onChange={handleChainflipInputChange} />
@@ -980,8 +1005,9 @@ const [recipient, setRecipient] = useState<string>('');
               <FormLabel>CF Parameters</FormLabel>
               <Input name="cfParameters" value={chainflipParams.cfParameters} onChange={handleChainflipInputChange} />
             </FormControl>
-          </VStack>
+            </VStack>
   )}
+  
     
           {(selectedFunction === 'EVMThenChainflipCCM' || selectedFunction === 'EVMThenChainflip' || selectedFunction === 'EVMthenThor')  && (
             <FormControl mt={4}>

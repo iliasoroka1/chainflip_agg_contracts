@@ -256,13 +256,6 @@ contract ThorchainMayaChainflipCCMAggregator {
         }
     }
 
-// Function to perform a swap via Chainflip CCM (Cross-Chain Messaging)
-function swapViaChainflip(ChainflipParams memory params) public payable nonReentrant {
-    // Check and request the appropriate tokens/ETH for the swap
-    checkAdnRequest(params.srcToken, params.amount, msg.value, msg.sender);
-    // Execute the Chainflip CCM swap
-    _executeChainflipSwap(params, params.amount);
-}
 
 // Internal function to execute the THORChain/Maya portion of a swap
 function _swapThorMaya(ThorMayaParams memory params, uint256 amount) internal {
@@ -370,21 +363,16 @@ function odosSwapThenChainflipMayaThor(
     ThorMayaParams memory MayaParams,
     ChainflipParams memory chainflipParams
 ) external payable {
-    // Check if the input is ETH or a token
     bool isInputEth = isETH(inputToken);
 
-    // Ensure the correct amount is sent
     if (isInputEth) {
         require(msg.value == inputAmount, "Incorrect ETH amount");
     } else {
         require(msg.value == 0, "ETH not accepted for token swaps");
-        // Transfer tokens from the sender to this contract
         inputToken.safeTransferFrom(msg.sender, address(this), inputAmount);
-        // Approve Odos router to spend the input tokens
         inputToken.safeApprove(odosRouter, inputAmount);
     }
 
-    // Record the initial balance of the output token/ETH
     uint256 initialBalance;
     if (isETH(outputToken)) {
         initialBalance = address(this).balance;
@@ -433,69 +421,13 @@ function _handleThorchainSwap(
     }
 
 
-// function executeSwapSteps(
-//     SwapStep[] memory steps,
-//     address initialToken,
-//     uint256 initialAmount
-// ) internal returns (uint256) {
-//     uint256 currentAmount = initialAmount;
-//     address currentToken = initialToken;
-
-//     for (uint i = 0; i < steps.length; i++) {
-//         SwapStep memory step = steps[i];
-//         uint256 stepAmount = currentAmount;
-        
-//         // Approve the current token for the respective DEX
-//         if (step.dex == DEX.UNISWAP) {
-//             _approveUniswap(currentToken, stepAmount);
-//         } else if (step.dex == DEX.SUSHISWAP) {
-//             _approveSushiswap(currentToken, stepAmount);
-//         }
-        
-//         uint256 stepOutput;
-//         if (step.dex == DEX.UNISWAP) {
-//             stepOutput = _swapOnUniswap(
-//                 determineSwapType(currentToken, step.tokenOut),
-//                 currentToken,
-//                 stepAmount,
-//                 step.tokenOut,
-//                 step.minAmountOut,
-//                 address(this), 
-//                 true
-//             );
-//         } else if (step.dex == DEX.SUSHISWAP) {
-//             stepOutput = _swapOnSushiswap(
-//                 determineSwapType(currentToken, step.tokenOut),
-//                 currentToken,
-//                 stepAmount,
-//                 step.tokenOut,
-//                 step.minAmountOut,
-//                 address(this),
-//                 true
-//             );
-//         } else {
-//             revert("Unsupported DEX for this step");
-//         }
-        
-//         currentAmount = stepOutput;
-//         currentToken = step.tokenOut;
-//     }
-//     return currentAmount;
-// }
-
 function _approveUniswap(address token, uint256 amount) internal {
     if (!isETH(token)) {
         token.safeApprove(address(uniRouter), amount);
     }
 }
 
-
-    
-
-
-
-
-    function _approveSushiswap(address token, uint256 amount) internal {
+function _approveSushiswap(address token, uint256 amount) internal {
         if (!isETH(token)) {
             token.safeApprove(address(sushiRouter), amount);
         }
@@ -508,7 +440,6 @@ function _approveUniswap(address token, uint256 amount) internal {
     address recipient,
     bool useContractBalance
 ) internal returns (uint256) {
-    require(path.length >= 2, "Invalid path");
     
     address inputToken = path[0];
     address outputToken = path[path.length - 1];
@@ -547,7 +478,6 @@ function _swapOnUniswap(
     address recipient,
     bool useContractBalance
 ) internal returns (uint256) {
-    require(path.length >= 2, "Invalid path");
     
     address inputToken = path[0];
     address outputToken = path[path.length - 1];
@@ -586,7 +516,6 @@ function _swapWithPath(
     address[] memory path,
     uint256 amountIn
 ) internal returns (uint256) {
-    require(path.length > 1, "Invalid path length");
 
     uint256 minOutputAmount = 0; // We'll check the final amount outside this function
     address recipient = address(this);

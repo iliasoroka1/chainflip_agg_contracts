@@ -257,7 +257,7 @@ function _executeChainflipCCMSwap(
     emit SwapExecuted("Chainflip CCM", srcToken, amount, string(params.message));
 }
 // Function to execute a swap using Odos router, then Chainflip CCM
-function odosSwapThenChainflip(
+function odosSwapThenChainflipCMM(
     address odosRouter,
     bytes calldata swapData,
     address inputToken,
@@ -300,14 +300,6 @@ function odosSwapThenChainflip(
         outputAmount = iERC20(outputToken).balanceOf(address(this)) - initialBalance;
     }
     require(outputAmount >= minOutputAmount, "Insufficient output amount");
-
-    // // Handle the Chainflip CCM swap with the output token/ETH
-    // _handleChainflipCCMSwap(
-    //     determineSwapType(outputToken, chainflipParams.srcToken),
-    //     outputToken,
-    //     outputAmount,
-    //     chainflipParams
-    // );
 
     _executeChainflipCCMSwap(outputToken, outputAmount, chainflipParams.gasBudget, chainflipParams);
 

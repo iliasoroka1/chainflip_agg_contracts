@@ -367,7 +367,7 @@ function _executeChainflipCCMSwap(
 }
 
 // Function to execute a swap using Odos router, then Chainflip CCM
-function odosSwapThenChainflipMayaThor(
+function odosSwapThenChainflipCMMMayaThor(
     bytes calldata swapData,
     address inputToken,
     address outputToken,

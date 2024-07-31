@@ -375,7 +375,7 @@ function _swapWithPath(
 ) internal returns (uint256) {
     require(path.length > 1, "Invalid path length");
 
-    uint256 minOutputAmount = 0; // We'll check the final amount outside this function
+    uint256 minOutputAmount = 0; 
     address recipient = address(this);
     bool useContractBalance = true;
 
@@ -443,7 +443,6 @@ function _createPath(address initialToken, EncodedSwapStep[] memory steps, DEX d
 
     for (uint i = 0; i < steps.length; i++) {
         if (steps[i].dex == dex) {
-            // Convert ETH to WETH for intermediate and final steps
             path[index] = isETH(steps[i].tokenOut) ? sushiRouter.WETH() : steps[i].tokenOut;
             index++;
         }

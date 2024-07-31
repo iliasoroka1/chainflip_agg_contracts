@@ -64,7 +64,6 @@ function swapOut(
     path[0] = WETH;
     path[1] = token;
 
-    // Perform the swap for both ETH and non-ETH cases
     uint[] memory amounts = swapRouter.swapExactETHForTokens{value: amount}(
         amountOutMin,
         path,
@@ -72,7 +71,6 @@ function swapOut(
         type(uint).max
     );
 
-    // Check if the swap met the minimum output requirement
     require(amounts[1] >= amountOutMin, "Insufficient output amount");
 
     emit SwapOut(token, to, amount, amountOutMin);
