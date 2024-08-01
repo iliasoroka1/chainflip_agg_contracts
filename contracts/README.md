@@ -5,7 +5,7 @@ This project is a web interface for interacting with various cross-chain and dec
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
-- Node.js (version 12.0 or later)
+- Node.js (version 20.1 or later)
 - Yarn package manager
 
 ## Installation
