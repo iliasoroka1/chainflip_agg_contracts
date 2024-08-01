@@ -54,9 +54,8 @@ contract THORChainOutChainflipETH {
         owner = msg.sender;
         _status = _NOT_ENTERED;
 
-        // Initialize asset mappings
         assetToChainflipID[ETH] = 1; // ETH
-        assetToChainflipID[address(0x1111111111111111111111111111111111111111)] = 2; // FLIP (placeholder address)
+        assetToChainflipID[address(0x826180541412D574cf1336d22c0C0a287822678A)] = 2; // FLIP (placeholder address)
         assetToChainflipID[address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)] = 3; // USDC
         assetToChainflipID[address(0x2222222222222222222222222222222222222222)] = 4; // DOT (placeholder address)
         assetToChainflipID[address(0x3333333333333333333333333333333333333333)] = 5; // BTC (placeholder address)

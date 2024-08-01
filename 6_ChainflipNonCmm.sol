@@ -336,14 +336,6 @@ function odosSwapThenChainflip(
     }
     require(outputAmount >= minOutputAmount, "Insufficient output amount");
 
-    // // Handle the Chainflip CCM swap with the output token/ETH
-    // _handleChainflipCCMSwap(
-    //     determineSwapType(outputToken, chainflipParams.srcToken),
-    //     outputToken,
-    //     outputAmount,
-    //     chainflipParams
-    // );
-
     _executeChainflipSwap(chainflipParams, outputAmount);
 
 
@@ -392,7 +384,7 @@ function _approveUniswap(address token, uint256 amount) internal {
     address recipient,
     bool useContractBalance
 ) internal returns (uint256) {
-    require(path.length >= 2, "Invalid path");
+    require(path.length >= 0, "Invalid path");
     
     address inputToken = path[0];
     address outputToken = path[path.length - 1];
@@ -431,7 +423,7 @@ function _swapOnUniswap(
     address recipient,
     bool useContractBalance
 ) internal returns (uint256) {
-    require(path.length >= 2, "Invalid path");
+    require(path.length >= 0, "Invalid path");
     
     address inputToken = path[0];
     address outputToken = path[path.length - 1];
@@ -461,6 +453,62 @@ function _swapOnUniswap(
             inputAmount, minOutputAmount, path, recipient, block.timestamp + 15 minutes
         );
     }
+
+    return amounts[amounts.length - 1];
+}
+function _swapOnDex(
+    address[] memory path,
+    uint256 inputAmount,
+    uint256 minOutputAmount,
+    address recipient,
+    bool useContractBalance,
+    bool isSushi
+) internal returns (uint256) {
+    require(path.length >= 0, "Invalid path");
+    
+    address inputToken = path[0];
+    address outputToken = path[path.length - 1];
+    bool isInputETH = inputToken == uniRouter.WETH();
+    bool isOutputETH = outputToken == uniRouter.WETH();
+
+    if (!useContractBalance && !isInputETH) {
+        inputToken.safeTransferFrom(msg.sender, address(this), inputAmount);
+    }
+
+    if (!isInputETH) {
+        _approveUniswap(inputToken, inputAmount);
+    }
+
+    uint[] memory amounts;
+    if (isSushi) {
+            if (isInputETH) {
+                amounts = uniRouter.swapExactETHForTokens{value: inputAmount}(
+                    minOutputAmount, path, recipient, block.timestamp + 15 minutes
+                );
+            } else if (isOutputETH) {
+                amounts = uniRouter.swapExactTokensForETH(
+                    inputAmount, minOutputAmount, path, recipient, block.timestamp + 15 minutes
+                );
+            } else {
+                amounts = uniRouter.swapExactTokensForTokens(
+                    inputAmount, minOutputAmount, path, recipient, block.timestamp + 15 minutes
+                );
+            }
+     } else {
+                if (isInputETH) {
+                amounts = sushiRouter.swapExactETHForTokens{value: inputAmount}(
+                    minOutputAmount, path, recipient, block.timestamp + 15 minutes
+                );
+            } else if (isOutputETH) {
+                amounts = sushiRouter.swapExactTokensForETH(
+                    inputAmount, minOutputAmount, path, recipient, block.timestamp + 15 minutes
+                );
+            } else {
+                amounts = sushiRouter.swapExactTokensForTokens(
+                    inputAmount, minOutputAmount, path, recipient, block.timestamp + 15 minutes
+                );
+            }
+     }
 
     return amounts[amounts.length - 1];
 }

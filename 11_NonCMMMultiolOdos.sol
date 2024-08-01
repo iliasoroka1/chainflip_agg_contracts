@@ -32,7 +32,6 @@ interface iERC20 {
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
 }
 
-
 interface iROUTER {
     function depositWithExpiry(
         address payable vault,
@@ -43,40 +42,26 @@ interface iROUTER {
     ) external payable;
 }
 
-interface ICHAINFLIP_LP{
-    function fundStateChainAccount(
-        bytes32 nodeID, 
-        uint256 amount
-        ) external;
-
-    function executeRedemption(
-        bytes32 nodeID) 
-        external returns (address, uint256);
-}
 
 interface iCHAINFLIP_VAULT {
-    function xCallNative(
+    function xSwapNative(
         uint32 dstChain,
         bytes calldata dstAddress,
         uint32 dstToken,
-        bytes calldata message,
-        uint256 gasBudget,
         bytes calldata cfParameters
     ) external payable;
 
-    function xCallToken(
+    function xSwapToken(
         uint32 dstChain,
         bytes calldata dstAddress,
         uint32 dstToken,
-        bytes calldata message,
-        uint256 gasBudget,
         address srcToken,
         uint256 amount,
         bytes calldata cfParameters
     ) external;
 }
 
-contract ChainflipCCMAggregatorOdos {
+contract ThorchainMayaChainflipCCMAggregator {
 
     using SafeTransferLib for address;
 
@@ -91,6 +76,7 @@ contract ChainflipCCMAggregatorOdos {
 
     address public owner;
     address public cfVault; 
+    address public odosRouter;
 
     // Enums for swap types and DEXes
     enum SwapType { ETH_TO_TOKEN, TOKEN_TO_TOKEN, TOKEN_TO_ETH }
@@ -102,35 +88,25 @@ contract ChainflipCCMAggregatorOdos {
     // Event declarations
     event SwapFailed(uint32 srcChain, bytes srcAddress, address token, uint256 amount, string reason);
     event SwapExecuted(string protocol, address token, uint256 amount, string memo);
-    event CFReceive(
-        uint32 srcChain,
-        bytes srcAddress,
-        address token,
-        uint256 amount,
-        address router,
-        string memo
-    );
+
 
     // Struct definitions for various swap parameters
     struct ThorMayaParams {
         address vault;
         address router;
         address token;
-        uint256 amount;
         string memo;
-        bool isMaya;
     }
 
-    struct ChainflipCCMParams {
+    struct ChainflipParams {
         uint32 dstChain;
         bytes dstAddress;
         uint32 dstToken;
         address srcToken;
         uint256 amount;
-        bytes message;
-        uint256 gasBudget;
         bytes cfParameters;
     }
+
 
 
     // Modifier to prevent reentrancy attacks
@@ -148,9 +124,10 @@ contract ChainflipCCMAggregatorOdos {
     }
 
     // Constructor to initialize the contract
-    constructor(address _cfVault) {
+    constructor(address _cfVault, address _odosRouter) {
         _status = _NOT_ENTERED;
-        cfVault = _cfVault;
+        cfVault = _cfVault; 
+        odosRouter = _odosRouter;
         owner = msg.sender;
     }
 
@@ -218,69 +195,55 @@ function _swapThorMaya(ThorMayaParams memory params, uint256 amount) internal {
             );
         }
         // Emit an event to log the swap execution
-        emit SwapExecuted(params.isMaya ? "Maya" : "THORChain", params.token, amount, params.memo);
+        emit SwapExecuted("THORChain", params.token, amount, params.memo);
     }
 }
 
-// Internal function to execute the Chainflip CCM portion of a swap
-function _executeChainflipCCMSwap(
-    address srcToken,
-    uint256 amount,
-    uint256 gasBudget,
-    ChainflipCCMParams memory params
-) internal {
-    if (isETH(srcToken)) {
-        // For ETH swaps, call xCallNative on the Chainflip vault
-        iCHAINFLIP_VAULT(cfVault).xCallNative{value: amount}(
-            params.dstChain,
-            params.dstAddress,
-            params.dstToken,
-            params.message,
-            gasBudget,
-            params.cfParameters
-        );
-    } else {
-        // For token swaps, approve and call xCallToken on the Chainflip vault
-        srcToken.safeApprove(cfVault, amount);
-        iCHAINFLIP_VAULT(cfVault).xCallToken(
-            params.dstChain,
-            params.dstAddress,
-            params.dstToken,
-            params.message,
-            gasBudget,
-            srcToken,
-            amount,
-            params.cfParameters
-        );
+function _executeChainflipSwap(ChainflipParams memory params, uint256 amount) internal {
+        if (amount > 0) {
+            if (params.srcToken == ETH) {
+                iCHAINFLIP_VAULT(cfVault).xSwapNative{value: amount}(
+                    params.dstChain,
+                    params.dstAddress,
+                    params.dstToken,
+                    params.cfParameters
+                );
+            } else {
+                params.srcToken.safeApprove(cfVault, amount);
+                iCHAINFLIP_VAULT(cfVault).xSwapToken(
+                    params.dstChain,
+                    params.dstAddress,
+                    params.dstToken,
+                    params.srcToken,
+                    amount,
+                    params.cfParameters
+                );
+            }
+            emit SwapExecuted("Chainflip", params.srcToken, amount, string(params.cfParameters));
+        }
     }
-    // Emit an event to log the Chainflip CCM swap execution
-    emit SwapExecuted("Chainflip CCM", srcToken, amount, string(params.message));
-}
-// Function to execute a swap using Odos router, then Chainflip CCM
-function odosSwapThenChainflipCMM(
-    address odosRouter,
+
+function odosSwapThenChainflipMayaThor(
     bytes calldata swapData,
     address inputToken,
     address outputToken,
     uint256 inputAmount,
-    uint256 minOutputAmount,
-    ChainflipCCMParams memory chainflipParams
+    uint256 thorchainPercentage,
+    uint256 mayaPercentage,
+    ThorMayaParams memory thorMayaParams,
+    ThorMayaParams memory MayaParams,
+    ChainflipParams memory chainflipParams
 ) external payable {
-    // Check if the input is ETH or a token
     bool isInputEth = isETH(inputToken);
 
-    // Ensure the correct amount is sent
     if (isInputEth) {
         require(msg.value == inputAmount, "Incorrect ETH amount");
     } else {
         require(msg.value == 0, "ETH not accepted for token swaps");
-        // Transfer tokens from the sender to this contract
         inputToken.safeTransferFrom(msg.sender, address(this), inputAmount);
-        // Approve Odos router to spend the input tokens
         inputToken.safeApprove(odosRouter, inputAmount);
     }
 
-    // Record the initial balance of the output token/ETH
     uint256 initialBalance;
     if (isETH(outputToken)) {
         initialBalance = address(this).balance;
@@ -299,63 +262,37 @@ function odosSwapThenChainflipCMM(
     } else {
         outputAmount = iERC20(outputToken).balanceOf(address(this)) - initialBalance;
     }
-    require(outputAmount >= minOutputAmount, "Insufficient output amount");
 
-    _executeChainflipCCMSwap(outputToken, outputAmount, chainflipParams.gasBudget, chainflipParams);
+    uint256 thorchainAmount = (outputAmount * thorchainPercentage) / 100;
+    uint256 MayaAmount = (outputAmount * mayaPercentage) / 100;
+    uint256 chainflipAmount = outputAmount - (thorchainAmount + MayaAmount);
 
-    // Emit an event for the swap execution
-    emit SwapExecuted("OdosThenChainflip", inputToken, inputAmount, string(chainflipParams.message));
-}
-
-
-function OdosThor(
-    address inputToken,
-    uint256 inputAmount,   
-    address odosRouter,
-    bytes calldata swapData,
-    address outputToken, 
-    ThorMayaParams memory thorMayaParams
-) public payable nonReentrant {
-
-    bool isInputEth = isETH(inputToken);
-
-    // Ensure the correct amount is sent
-    if (isInputEth) {
-        require(msg.value == inputAmount, "Incorrect ETH amount");
-    } else {
-        require(msg.value == 0, "ETH not accepted for token swaps");
-        // Transfer tokens from the sender to this contract
-        inputToken.safeTransferFrom(msg.sender, address(this), inputAmount);
-        // Approve Odos router to spend the input tokens
-        inputToken.safeApprove(odosRouter, inputAmount);
+    // Handle THORChain swap
+    if (thorchainPercentage > 0) {
+    _handleThorchainSwap(thorMayaParams.token, thorchainAmount, thorMayaParams);
+    } 
+    if (mayaPercentage > 0 ){
+    _handleThorchainSwap(MayaParams.token, MayaAmount, MayaParams);
+    }
+     if (chainflipAmount > 0){
+    _executeChainflipSwap(chainflipParams, chainflipAmount);
     }
 
-    // Record the initial balance of the output token/ETH
-    uint256 initialBalance;
-    if (isETH(outputToken)) {
-        initialBalance = address(this).balance;
-    } else {
-        initialBalance = iERC20(outputToken).balanceOf(address(this));
+    emit SwapExecuted("OdosThenChainflip", inputToken, inputAmount, "");
+
+
+    }
+function _handleThorchainSwap(
+        address outputToken, 
+        uint256 amount, 
+        ThorMayaParams memory params
+    ) internal {
+        params.token = outputToken;
+        _swapThorMaya(params, amount);
     }
 
-    // Execute the swap using Odos router
-    (bool success, ) = odosRouter.call{value: isInputEth ? inputAmount : 0}(swapData);
-    require(success, "Odos swap failed");
 
-    // Calculate the output amount
-    uint256 outputAmount;
-    if (isETH(outputToken)) {
-        outputAmount = address(this).balance - initialBalance;
-    } else {
-        outputAmount = iERC20(outputToken).balanceOf(address(this)) - initialBalance;
-    }
-    // require(outputAmount >= minOutputAmount, "Insufficient output amount");
 
-    thorMayaParams.token = outputToken;
-    thorMayaParams.amount = outputAmount;
-    _swapThorMaya(thorMayaParams, outputAmount);
-    
-}
 
 
     function _transferOutput(address finalOutputToken, uint256 outputAmount, address router) internal {
