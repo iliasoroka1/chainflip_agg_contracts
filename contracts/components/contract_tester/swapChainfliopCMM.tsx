@@ -191,7 +191,7 @@ console.log("odosCMMThorContract", signer)
 
   const predefinedScenarios = [
     {
-      name: "ETH to USDC on Chainflip, USDC to ETH on Sushi",
+      name: "ETH to USDC on Chainflip, USDC to ETH on Sushi/UNI",
       chainflipParams: {
         dstChain: 4,
         dstAddress: "0xbe377052220e7f8c1ad624ee515b654805bb854e",
@@ -284,7 +284,7 @@ console.log("odosCMMThorContract", signer)
       isEthSwap: false
     },
     {
-      name: "ARB to USDC via Odos, then USDC to ETH on Chainflip",
+      name: "ETH to USDC via Odos, then USDC to ETH on Chainflip, ETH to USDC on SUHI/UNI",
       odosInputs: {
         inputToken: "0x0000000000000000000000000000000000000000", 
         outputToken: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 
