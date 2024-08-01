@@ -1,6 +1,6 @@
 # Chainflip CCM Swap Interface
 
-This project is a web interface for interacting with various cross-chain and decentralized exchange protocols, including Chainflip, Odos, THORChain, and Maya.
+This project is a web interface for testing contracts with various cross-chain and decentralized exchange protocols, including Chainflip, Odos, THORChain, and Maya.
 
 ## Prerequisites
 
