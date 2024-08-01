@@ -341,13 +341,13 @@ console.log("odosCMMThorContract", signer)
         vault: "0x37f4bc8B3a06A751fC36BAA928d3fA5b63A540FC", 
         router: "0x700E97ef07219440487840Dc472E7120A7FF11F4", 
         asset: "0x0000000000000000000000000000000000000000",
-        memo: `=:BTC.BTC:${signerAddress}`
+        memo: `=:ARB.USDC:${signerAddress}`
       },
       mayaParams: {
         vault: "0x37f4bc8B3a06A751fC36BAA928d3fA5b63A540FC",
         router: "0x700E97ef07219440487840Dc472E7120A7FF11F4",
         asset: "0x0000000000000000000000000000000000000000",
-        memo: `=:BTC.BTC:${signerAddress}`
+        memo: `=:ARB.USDC:${signerAddress}`
       },
       chainflipParams: {
         dstChain: 4, 
