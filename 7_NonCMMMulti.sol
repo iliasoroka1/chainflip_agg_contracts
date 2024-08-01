@@ -433,51 +433,15 @@ function _approveSushiswap(address token, uint256 amount) internal {
         }
     }
 
-    function _swapOnSushiswap(
+function _swapOnDex(
     address[] memory path,
     uint256 inputAmount,
     uint256 minOutputAmount,
     address recipient,
-    bool useContractBalance
+    bool useContractBalance,
+    bool isSushi
 ) internal returns (uint256) {
-    
-    address inputToken = path[0];
-    address outputToken = path[path.length - 1];
-    bool isInputETH = inputToken == uniRouter.WETH();
-    bool isOutputETH = outputToken == uniRouter.WETH();
-
-    if (!useContractBalance && !isInputETH) {
-        inputToken.safeTransferFrom(msg.sender, address(this), inputAmount);
-    }
-
-    if (!isInputETH) {
-        _approveSushiswap(inputToken, inputAmount);
-    }
-
-    uint[] memory amounts;
-
-    if (isInputETH) {
-        amounts = sushiRouter.swapExactETHForTokens{value: inputAmount}(
-            minOutputAmount, path, recipient, block.timestamp + 15 minutes
-        );
-    } else if (isOutputETH) {
-        amounts = sushiRouter.swapExactTokensForETH(
-            inputAmount, minOutputAmount, path, recipient, block.timestamp + 15 minutes
-        );
-    } else {
-        amounts = sushiRouter.swapExactTokensForTokens(
-            inputAmount, minOutputAmount, path, recipient, block.timestamp + 15 minutes
-        );
-    }
-    return amounts[amounts.length - 1];
-}
-function _swapOnUniswap(
-    address[] memory path,
-    uint256 inputAmount,
-    uint256 minOutputAmount,
-    address recipient,
-    bool useContractBalance
-) internal returns (uint256) {
+    require(path.length >= 0, "Invalid path");
     
     address inputToken = path[0];
     address outputToken = path[path.length - 1];
@@ -493,20 +457,35 @@ function _swapOnUniswap(
     }
 
     uint[] memory amounts;
-
-    if (isInputETH) {
-        amounts = uniRouter.swapExactETHForTokens{value: inputAmount}(
-            minOutputAmount, path, recipient, block.timestamp + 15 minutes
-        );
-    } else if (isOutputETH) {
-        amounts = uniRouter.swapExactTokensForETH(
-            inputAmount, minOutputAmount, path, recipient, block.timestamp + 15 minutes
-        );
-    } else {
-        amounts = uniRouter.swapExactTokensForTokens(
-            inputAmount, minOutputAmount, path, recipient, block.timestamp + 15 minutes
-        );
-    }
+    if (isSushi) {
+            if (isInputETH) {
+                amounts = uniRouter.swapExactETHForTokens{value: inputAmount}(
+                    minOutputAmount, path, recipient, block.timestamp + 15 minutes
+                );
+            } else if (isOutputETH) {
+                amounts = uniRouter.swapExactTokensForETH(
+                    inputAmount, minOutputAmount, path, recipient, block.timestamp + 15 minutes
+                );
+            } else {
+                amounts = uniRouter.swapExactTokensForTokens(
+                    inputAmount, minOutputAmount, path, recipient, block.timestamp + 15 minutes
+                );
+            }
+     } else {
+                if (isInputETH) {
+                amounts = sushiRouter.swapExactETHForTokens{value: inputAmount}(
+                    minOutputAmount, path, recipient, block.timestamp + 15 minutes
+                );
+            } else if (isOutputETH) {
+                amounts = sushiRouter.swapExactTokensForETH(
+                    inputAmount, minOutputAmount, path, recipient, block.timestamp + 15 minutes
+                );
+            } else {
+                amounts = sushiRouter.swapExactTokensForTokens(
+                    inputAmount, minOutputAmount, path, recipient, block.timestamp + 15 minutes
+                );
+            }
+     }
 
     return amounts[amounts.length - 1];
 }
@@ -522,20 +501,22 @@ function _swapWithPath(
     bool useContractBalance = true;
 
     if (dex == DEX.UNISWAP) {
-        return _swapOnUniswap(
+        return _swapOnDex(
             path,
             amountIn,
             minOutputAmount,
             recipient,
-            useContractBalance
+            useContractBalance, 
+            false
         );
     } else if (dex == DEX.SUSHISWAP) {
-        return _swapOnSushiswap(
+        return _swapOnDex(
             path,
             amountIn,
             minOutputAmount,
             recipient,
-            useContractBalance
+            useContractBalance,
+            true
         );
     } else {
         revert("Unsupported DEX");

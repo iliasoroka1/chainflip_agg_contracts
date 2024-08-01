@@ -15,15 +15,62 @@ import {
   Checkbox,
   Divider,
 } from '@chakra-ui/react';
-import abi from "@/constants/abi/aggregator.json" assert { type: "json" };
-import { ethers } from 'ethers';
+import abiCMMSU from "@/constants/abi/chainflipCMMSU.json" assert { type: "json" };
+import allSwap from "@/constants/abi/allSwap.json" assert { type: "json" };
+import OdosCMMThor from "@/constants/abi/OdosCMMThor.json" assert { type: "json" };
+import ThorSu from "@/constants/abi/ThrchainSU.json" assert { type: "json" };
+import ChainflipNonCMM from "@/constants/abi/chainflipNonCMM.json" assert { type: "json" };
+
+
+import { Contract, ContractInterface, ethers } from 'ethers';
 import { assembleQuote, fetchQuote } from '@/hooks/swap/quoteOdos';
 import { ChainflipCCMParams, EncodedSwapStep, EncodingParams, EVMin, OdosAssemble, OdosInputs, ThorchainParams } from './interfaces';
+import { add } from 'lodash';
+type ContractConfig = {
+  address: string;
+  abi: ContractInterface;
+};
+
+type ContractConfigs = {
+  [key: string]: ContractConfig;
+};
+
+type Contracts = {
+  [key: string]: Contract;
+};
+
+
 
 const ChainflipCCMSwap: React.FC = () => {
   // URL for fetching quotes
   const quoteUrl = "https://api.odos.xyz/sor/quote/v2";
   const assembleUrl = 'https://api.odos.xyz/sor/assemble';
+  const CONTRACT_CONFIG: ContractConfigs = {
+    CMMSU: {
+      address: "0x67ac4edc678c5ee3c16aab504e72e9cc006036fd",
+      abi: abiCMMSU
+    },
+    AllSwap: {
+      address: "0xf6819cbafe9f0c1a61a97a4b598e41f717cbf957",
+      abi: allSwap
+    },
+    ThorSu : {
+      address: "0x34fa690128bf777c31acaa747fe45a21e9084cad",
+      abi: ThorSu
+    },
+    OdosCMMThor: {
+      address: "0x2716bbb4888d8c6270fac7c93427bc57b6237071",
+      abi: OdosCMMThor
+    },
+    ChainflipNonCMM: {
+      address: "0x9f3b0dd50cfbcc82260b1ef9011397cf4ae7d504",
+      abi: ChainflipNonCMM
+    }
+  };
+  
+  
+  
+  
 
   const [encodingParams, setEncodingParams] = useState<EncodingParams>({
     swapType: 0,
@@ -91,8 +138,55 @@ const [selectedFunction, setSelectedFunction] = useState('');
 const [swapSteps, setSwapSteps] = useState<EncodedSwapStep[]>([]);
 const [swpStepOut, setSwapStepOut] = useState<EncodedSwapStep[]>([]);
 const [loading, setLoading] = useState(false);
-const [signer, setsigner] = useState<any>();
 const [recipient, setRecipient] = useState<string>('');
+const [contracts, setContracts] = useState<Contracts>({});
+const [signer, setSigner] = useState<ethers.Signer | null>(null);
+const [signerAddress, setSignerAddress] = useState<string>(''); 
+const [showContract, setShowContract] = useState(false);
+useEffect(() => {
+  if (typeof window.ethereum !== 'undefined') {
+    try {
+      const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+      const signer = provider.getSigner();
+      setSigner(signer);
+
+      const newContracts: Contracts = {};
+      Object.entries(CONTRACT_CONFIG).forEach(([name, config]) => {
+        newContracts[name] = new ethers.Contract(config.address, config.abi, signer);
+      });
+
+      setContracts(newContracts);
+      async function getSgAdress() {
+        return setSignerAddress(await signer?.getAddress());
+      }
+      getSgAdress();
+
+    } catch (error) {
+      console.error("Error creating contract instances:", error);
+      toast({
+        title: "Contract Creation Error",
+        description: "Failed to create contract instances. Please check your connection.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  }
+}, []);
+
+
+const cmmsuContract = contracts.CMMSU;
+
+const allSwapContract = contracts.AllSwap;
+
+const odosCMMThorContract = contracts.OdosCMMThor;
+
+const thorSU = contracts.ThorSu;
+
+const chainflipNonCMM = contracts.ChainflipNonCMM;
+
+console.log("odosCMMThorContract", signer)
+
 
 
   const predefinedScenarios = [
@@ -100,88 +194,190 @@ const [recipient, setRecipient] = useState<string>('');
       name: "ETH to USDC on Chainflip, USDC to ETH on Sushi",
       chainflipParams: {
         dstChain: 4,
-        dstAddress: "0x",
+        dstAddress: "0xbe377052220e7f8c1ad624ee515b654805bb854e",
         dstToken: 7,
         srcToken: "0x0000000000000000000000000000000000000000",
-        amount: "1700000000000000",
+        amount: "1000000000000000",
         mesage: "0x",
-        gasBudget: "400000000000000",
+        gasBudget: "100000000000000",
         cfParameters: "0x"
       },
       encodingParams: {
         swapType: 1,
-        router: "0x3672d3c7FF90Dcb3e26C379A58FB923C377D1b8e",
-        outputToken: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
-        minOutputAmount: "0"
-      }
+        router:  signerAddress,
+        outputToken: "0x0000000000000000000000000000000000000000",
+        minOutputAmount: "0",
+        swapSteps: [
+          {
+            dex: 1,
+            percentage: 50,
+            tokenOut: "0x0000000000000000000000000000000000000000"
+          },
+          {
+            dex: 0,
+            percentage: 50,
+            tokenOut: "0x0000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      func: 'swapViaChainflipCCM',
+      isEthSwap: true
+
     },
-    // {
-    //   name: "USDC to ETH on Chainflip, ETH to DAI on Sushi",
-    //   chainflipParams: {
-    //     dstChain: 4,
-    //     dstAddress: "0x06c0e2bfa9d22b0b02ac2014deec6eff2cdcf571",
-    //     dstToken: 0,
-    //     srcToken: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    //     amount: "1000000000",
-    //     mesage: "0x",
-    //     gasBudget: "400000000000000",
-    //     cfParameters: "0x"
-    //   },
-    //   encodingParams: {
-    //     swapType: 1,
-    //     router: "0x3672d3c7FF90Dcb3e26C379A58FB923C377D1b8e",
-    //     outputToken: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
-    //     minOutputAmount: "0"
-    //   }
-    // },
-    // {
-    //   name: "ETH to BTC on THORChain",
-    //   chainflipParams: {
-    //     dstChain: 4,
-    //     dstAddress: "0x06c0e2bfa9d22b0b02ac2014deec6eff2cdcf571",
-    //     dstToken: 7,
-    //     srcToken: "0x0000000000000000000000000000000000000000",
-    //     amount: "1000000000000000000",
-    //     mesage: "0x",
-    //     gasBudget: "400000000000000",
-    //     cfParameters: "0x"
-    //   },
-    //   encodingParams: {
-    //     swapType: 0,
-    //     router: "0x3672d3c7FF90Dcb3e26C379A58FB923C377D1b8e",
-    //     chain: "BTC",
-    //     tokenName: "BTC",
-    //     destinationAddress: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
-    //   }
-    // },
-    // {
-    //   name: "Deposit FLIP to Chainflip Vault",
-    //   chainflipParams: {
-    //     dstChain: 4,
-    //     dstAddress: "0x06c0e2bfa9d22b0b02ac2014deec6eff2cdcf571",
-    //     dstToken: 7,
-    //     srcToken: "0xYourFLIPTokenAddress", // Replace with actual FLIP token address
-    //     amount: "1000000000000000000", // 1 FLIP
-    //     mesage: "0x",
-    //     gasBudget: "400000000000000",
-    //     cfParameters: "0x"
-    //   },
-    //   encodingParams: {
-    //     swapType: 2,
-    //     router: "0xYourChainflipLPAddress", // Replace with actual Chainflip LP contract address
-    //     nodeID: "0x1234567890123456789012345678901234567890123456789012345678901234" // Example nodeID
-    //   }
-    // }
-  ];
-  
+    {
+      name: "ARB to ETH on Sushi\Uni, ETH to USDC on Chainflip, USDC to ETH to ARB on Sushi\Uni",
+      evmInputs: {
+        inputAmount: "4000000000000000000", // 4 ARB,
+        inputToken: "0x912CE59144191C1204E64559FE8253a0e49E6548",
+      },
+      swapSteps: [
+        {
+          dex: 0,
+          percentage: 50,
+          tokenOut: "0x0000000000000000000000000000000000000000"
+        },
+        {
+          dex: 1,
+          percentage: 50,
+          tokenOut: "0x0000000000000000000000000000000000000000"
+        }
+      ],
+      chainflipParams: {
+        dstChain: 4,
+        dstAddress: "0xbe377052220e7f8c1ad624ee515b654805bb854e",
+        dstToken: 7,
+        srcToken: "0x0000000000000000000000000000000000000000",
+        amount: "1000000000000000",
+        mesage: "0x",
+        gasBudget: "100000000000000",
+        cfParameters: "0x"
+      },
+      encodingParams: {
+        swapType: 1,
+        router:  signerAddress,
+        outputToken: "0x912CE59144191C1204E64559FE8253a0e49E6548",
+        minOutputAmount: "0",
+        swapSteps: [
+          {
+            dex: 1,
+            percentage: 50,
+            tokenOut: "0x0000000000000000000000000000000000000000"
+          },
+          {
+            dex: 1,
+            percentage: 50,
+            tokenOut: "0x912CE59144191C1204E64559FE8253a0e49E6548"
+          },
+          {
+            dex: 0,
+            percentage: 50,
+            tokenOut: "0x0000000000000000000000000000000000000000"
+          },
+          {
+            dex: 0,
+            percentage: 50,
+            tokenOut: "0x912CE59144191C1204E64559FE8253a0e49E6548"
+          }
+        ]
+      },
+      func: 'EVMThenChainflipCCM',
+      isEthSwap: false
+    },
+    {
+      name: "ARB to USDC via Odos, then USDC to ETH on Chainflip",
+      odosInputs: {
+        inputToken: "0x0000000000000000000000000000000000000000", 
+        outputToken: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 
+        inputAmount: "1000000000000000", 
+        minOutputAmount: "0",
+        odosRouter: "0xa669e7A0d4b3e4Fa48af2dE86BD4CD7126Be4e13",
+        SwapData: "0x", 
+      },
+      chainflipParams: {
+        dstChain: 4, 
+        dstAddress: "0xbe377052220e7f8c1ad624ee515b654805bb854e", 
+        dstToken: 6, 
+        srcToken: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", // USDC on Arbitrum
+        amount: "6000000", // 6 USDC
+        message: "0x",
+        gasBudget: "122351",
+        cfParameters: "0x"
+      },
+      encodingParams: {
+        swapType: 1,
+        router:  signerAddress,
+        outputToken: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        minOutputAmount: "0",
+        swapSteps: [
+          {
+            dex: 1,
+            percentage: 50,
+            tokenOut: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+          },
+          {
+            dex: 0,
+            percentage: 50,
+            tokenOut: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+          },
+        ]
+      },
+      func: 'odosSwapThenChainflipCMM',
+      isEthSwap: true,
+      recipient: "0x" 
+    },  
+    {
+      name: "ARB to ETH via Odos, then ETH to USDC on Maya and Chainflip (Will not work on Maya as contract is not whitelisted !!)",
+      odosInputs: {
+        inputToken: "0x912CE59144191C1204E64559FE8253a0e49E6548", 
+        outputToken: "0x0000000000000000000000000000000000000000", 
+        inputAmount: "4000000000000000000", // 10 ARB 
+        minOutputAmount: "0", 
+        odosRouter: "0xa669e7A0d4b3e4Fa48af2dE86BD4CD7126Be4e13",
+        SwapData: "0x", 
+      },
+      thorchainPercentage: "0", 
+      mayaPercentage: "20", 
+      thorParams: {
+        vault: "0x37f4bc8B3a06A751fC36BAA928d3fA5b63A540FC", 
+        router: "0x700E97ef07219440487840Dc472E7120A7FF11F4", 
+        asset: "0x0000000000000000000000000000000000000000",
+        memo: `=:BTC.BTC:${signerAddress}`
+      },
+      mayaParams: {
+        vault: "0x37f4bc8B3a06A751fC36BAA928d3fA5b63A540FC",
+        router: "0x700E97ef07219440487840Dc472E7120A7FF11F4",
+        asset: "0x0000000000000000000000000000000000000000",
+        memo: `=:BTC.BTC:${signerAddress}`
+      },
+      chainflipParams: {
+        dstChain: 4, 
+        dstAddress: "0x3672d3c7FF90Dcb3e26C379A58FB923C377D1b8e", 
+        dstToken: 7, // USDC
+        srcToken: "0x0000000000000000000000000000000000000000",
+        amount: "0",
+        mesage: "0x",
+        gasBudget: "100000000000000",
+        cfParameters: "0x"
+      },
+      func: 'odosSwapThenChainflipMayaThor',
+      isEthSwap: false
+    },
+  ];  
     const handleFetchAndAssemble = async () => {
       try {
+        console.log("odos params:",odosParams)
         const quoteData = await fetchQuote(odosParams, quoteUrl, tag);
         if (quoteData) {
-          const transactionData = await assembleQuote(recipient, quoteData.pathId, assembleUrl, false, contractAddress);
+          if (selectedFunction === 'odosSwapThenChainflipCMM') {
+            handleFetchAndAssemble();
+          const transactionData = await assembleQuote(odosCMMThorContract.address, quoteData.pathId, assembleUrl, false, odosCMMThorContract.address);
           if (transactionData) {
             console.log('Transaction Data:', transactionData);
-            setOdosInputs({SwapData: transactionData.data, odosRouter: transactionData.to});
+            setOdosInputs(prevInputs => ({
+              ...prevInputs,
+              SwapData: transactionData.data,
+              odosRouter: transactionData.to
+            }));
             toast({
               title: 'Quote Assembled',
               description: 'Transaction data ready for execution.',
@@ -197,6 +393,33 @@ const [recipient, setRecipient] = useState<string>('');
               duration: 5000,
               isClosable: true,
             });
+          }
+          } else if (selectedFunction === 'odosSwapThenChainflipMayaThor') {
+            handleFetchAndAssemble();
+            const transactionData = await assembleQuote(allSwapContract.address, quoteData.pathId, assembleUrl, false, allSwapContract.address);
+            if (transactionData) {
+              console.log('Transaction Data:', transactionData);
+              setOdosInputs(prevInputs => ({
+                ...prevInputs,
+                SwapData: transactionData.data,
+                odosRouter: transactionData.to
+              }));
+              toast({
+                title: 'Quote Assembled',
+                description: 'Transaction data ready for execution.',
+                status: 'success',
+                duration: 5000,
+                isClosable: true,
+              });
+            } else {
+              toast({
+                title: 'Assembly Failed',
+                description: 'Failed to assemble transaction data.',
+                status: 'error',
+                duration: 5000,
+                isClosable: true,
+              });
+            }
           }
         } else {
           toast({
@@ -220,7 +443,7 @@ const [recipient, setRecipient] = useState<string>('');
     };
 
   useEffect(() => {
-    if (selectedFunction === 'odosSwapThenChainflip') {
+    if (selectedFunction === 'odosSwapThenChainflipCMM') {
       setOdosParams({
         chainId: 42161, 
         compact: true,
@@ -241,10 +464,34 @@ const [recipient, setRecipient] = useState<string>('');
         slippageLimitPercent: 0.3,
         sourceBlacklist: [],
         sourceWhitelist: [],
-        userAddr: contractAddress
+        userAddr: odosCMMThorContract.address
+      });
+    }     
+    if (selectedFunction === 'odosSwapThenChainflipMayaThor') {
+      setOdosParams({
+        chainId: 42161, 
+        compact: true,
+        gasPrice: 20,
+        inputTokens: [
+          {
+            amount: odosInputs?.inputAmount,
+            tokenAddress: odosInputs?.inputToken
+          }
+        ],
+        outputTokens: [
+          {
+            proportion: 1, 
+            tokenAddress: odosInputs?.outputToken
+          }
+        ],
+        referralCode: 0,
+        slippageLimitPercent: 0.3,
+        sourceBlacklist: [],
+        sourceWhitelist: [],
+        userAddr: allSwapContract.address
       });
     }
-  }, [odosInputs, selectedFunction, contractAddress]);
+  }, [odosInputs, selectedFunction]);
 
   console.log("ODOS PARAMS", odosParams);
 
@@ -273,30 +520,50 @@ const [recipient, setRecipient] = useState<string>('');
     const scenario = predefinedScenarios.find(s => s.name === e.target.value);
     if (scenario) {
       setSelectedScenario(scenario.name);
-      setEncodingParams(scenario.encodingParams);
-      setChainflipParams(scenario.chainflipParams);
+    setEncodingParams(scenario.encodingParams || [] as any);
+    setChainflipParams(scenario.chainflipParams || [] as any);
+    setSelectedFunction(scenario.func);
+    setEvmInputs(scenario.evmInputs || undefined);
+    setSwapSteps(scenario.swapSteps || []);
+    setIsEthSwap(scenario.isEthSwap);
+    setOdosInputs(scenario.odosInputs || undefined);
+    setRecipient(scenario.recipient || '');
+    setThorParams(scenario.thorParams || {} as any);
+    setMayaParams(scenario.mayaParams || {} as any);
+    setThorchainPercentage(scenario.thorchainPercentage || '');
+    setMayaPercentage(scenario.mayaPercentage || ''); 
+      // setEncodingParams(scenario.newSteps);
     }
   };
-  useEffect(() => {
-    if (typeof window.ethereum !== 'undefined' && contractAddress) {
-      try {
-        const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
-        const signer = provider.getSigner();
-        setsigner(signer)
-        const newContract = new ethers.Contract(contractAddress, abi, signer);
-        setContract(newContract);
-      } catch (error) {
-        console.error("Error creating contract instance:", error);
-        toast({
-          title: "Contract Creation Error",
-          description: "Failed to create contract instance. Please check the contract address.",
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
-      }
+
+console.log("SWAAP STEPS", encodingParams.swapSteps);
+
+useEffect(() => {
+  if (typeof window.ethereum !== 'undefined') {
+    try {
+      const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+      const signer = provider.getSigner();
+      setSigner(signer);
+
+      const newContracts: Contracts = {};
+      Object.entries(CONTRACT_CONFIG).forEach(([name, config]) => {
+        newContracts[name] = new ethers.Contract(config.address, config.abi, signer);
+      });
+      setContracts(newContracts);
+    } catch (error) {
+      console.error("Error creating contract instances:", error);
+      toast({
+        title: "Contract Creation Error",
+        description: "Failed to create contract instances. Please check your connection.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
     }
-  }, [contractAddress]);
+  }
+}, []);
+
+console.log(contracts)
 
   const handleEncodingInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -363,7 +630,7 @@ const [recipient, setRecipient] = useState<string>('');
 
 
   const handleSubmit = async () => {
-    if (!contract) {
+    if (!contracts) {
       toast({ title: 'Contract not connected', status: 'error', duration: 3000, isClosable: true });
       return;
     }
@@ -376,12 +643,12 @@ const [recipient, setRecipient] = useState<string>('');
             const usdtContract = new ethers.Contract(
               (chainflipParams.srcToken ?? ""),
                           ['function approve(address spender, uint256 amount) public returns (bool)'],
-                          signer
+                          (signer ?? undefined)
                         );
-                        const approveTx = await usdtContract.approve(contract.address, chainflipParams.amount);
+                        const approveTx = await usdtContract.approve(cmmsuContract.address, chainflipParams.amount);
                         await approveTx.wait();
                       }
-          tx = await contract.swapViaChainflipCCM(
+          tx = await cmmsuContract.swapViaChainflipCCM(
             chainflipParams,
             { value: isEthSwap ? chainflipParams.amount : 0 }
           );
@@ -391,12 +658,12 @@ const [recipient, setRecipient] = useState<string>('');
           const usdtContract = new ethers.Contract(
             (evmInputs?.inputToken ?? ""),
                         ['function approve(address spender, uint256 amount) public returns (bool)'],
-                        signer
+                        (signer ?? undefined)
                       );
-                      const approveTx = await usdtContract.approve(contract, evmInputs?.inputAmount);
+                      const approveTx = await usdtContract.approve(cmmsuContract.address, evmInputs?.inputAmount);
                       await approveTx.wait();
                     }
-          tx = await contract.EVMThenChainflipCCM(
+          tx = await cmmsuContract.EVMThenChainflipCCM(
             evmInputs?.inputToken,
             evmInputs?.inputAmount, // Adjust decimals as needed
             swapSteps?.map(step => ({
@@ -419,16 +686,18 @@ const [recipient, setRecipient] = useState<string>('');
             }
           );
           break;
-        case 'odosSwapThenChainflipCMM':
-          if (!isEthSwap){
-            const usdtContract = new ethers.Contract(
-              (evmInputs?.inputToken ?? ""),
-              ['function approve(address spender, uint256 amount) public returns (bool)'],
-              signer );
-              const approveTx = await usdtContract.approve(contract, evmInputs?.inputAmount);
-              await approveTx.wait();
-              }
-          tx = await contract.odosSwapThenChainflipCMM(
+          case 'odosSwapThenChainflipCMM':
+            console.log("odosCMMThorContract.address",odosCMMThorContract?.address)
+            if (!isEthSwap){
+              const usdtContract = new ethers.Contract(
+                (odosInputs?.inputToken ?? ""),
+                ['function approve(address spender, uint256 amount) public returns (bool)'],
+                (signer ?? undefined));
+
+                  const approveTx = await usdtContract.approve(odosCMMThorContract.address, odosInputs?.inputAmount);
+                  await approveTx.wait();
+                }
+          tx = await odosCMMThorContract.odosSwapThenChainflipCMM(
             odosInputs?.odosRouter,
             odosInputs?.SwapData,
             odosInputs?.inputToken,
@@ -439,101 +708,25 @@ const [recipient, setRecipient] = useState<string>('');
             { value: isEthSwap ? odosInputs?.inputAmount : 0 }
           );
           break;
-          case 'EVMThenChainflip':
-            if (!isEthSwap){
-          const usdtContract = new ethers.Contract(
-            (evmInputs?.inputToken ?? ""),
-            ['function approve(address spender, uint256 amount) public returns (bool)'],
-            signer );
-            const approveTx = await usdtContract.approve(contract, evmInputs?.inputAmount);
-            await approveTx.wait();}
-          tx = await contract.EVMThenChainflip(
-            evmInputs?.inputToken,
-            evmInputs?.inputAmount, 
-            swapSteps?.map(step => ({
-              dex: step?.dex,
-              percentage: step?.percentage.toString(), // Assuming percentage is in whole numbers (e.g., 50 for 50%)
-              tokenOut: step?.tokenOut
-            })),
-            {
-              dstChain: chainflipParams.dstChain,
-              dstAddress: chainflipParams.dstAddress,
-              dstToken: chainflipParams.dstToken,
-              srcToken: chainflipParams.srcToken,
-              amount: chainflipParams.amount, 
-              cfParameters: chainflipParams.cfParameters
-            },
-            { 
-              value: isEthSwap ? evmInputs?.inputAmount : 0 
-            }
-          );
-          break;
-          case 'odosSwapThenChainflipCMM':
-            if (!isEthSwap){
-              const usdtContract = new ethers.Contract(
-                (odosInputs?.inputToken ?? ""),
-                ['function approve(address spender, uint256 amount) public returns (bool)'],
-                signer
-                  );
-                          const approveTx = await usdtContract.approve(contract.address, odosInputs?.inputAmount);
-                          await approveTx.wait();
-                }
-          tx = await contract.odosSwapThenChainflip(
-            odosInputs?.odosRouter,
-            odosInputs?.SwapData,
-            odosInputs?.inputToken,
-            odosInputs?.outputToken,
-            odosInputs?.inputAmount,
-            odosInputs?.minOutputAmount,
-            {
-              dstChain: chainflipParams.dstChain,
-              dstAddress: chainflipParams.dstAddress,
-              dstToken: chainflipParams.dstToken,
-              srcToken: chainflipParams.srcToken,
-              amount: chainflipParams.amount, 
-              cfParameters: chainflipParams.cfParameters
-            },
-            { value: isEthSwap ? odosInputs?.inputAmount : 0 }
-          );
-          break;
-          case 'EVMthenThor':
-            if (!isEthSwap){
-              const usdtContract = new ethers.Contract(
-                (evmInputs?.inputToken ?? ""),
-                            ['function approve(address spender, uint256 amount) public returns (bool)'],
-                            signer
-                          );
-                          const approveTx = await usdtContract.approve(contract.address, evmInputs?.inputAmount);
-                          await approveTx.wait();
-                        }
-              tx = await contract.EVMThenThor(
-                evmInputs?.inputToken,
-                evmInputs?.inputAmount,
-                swapSteps?.map(step => ({
-                  dex: step?.dex,
-                  percentage: step?.percentage.toString(),
-                  tokenOut: step?.tokenOut
-                })),
-                {
-                  vault: thorParams.vault,
-                  router: thorParams.router,
-                  token: thorParams?.asset,
-                  memo: thorParams.memo,
-                },
-                { value: isEthSwap ? evmInputs?.inputAmount : 0 }
-              );
-              break;
-              case 'trippleSwap':
-                tx = await contract.EVMThenThorMayaChainflip(
-                  evmInputs?.inputToken,
-                  evmInputs?.inputAmount,
-                  swapSteps?.map(step => ({
-                    dex: step?.dex,
-                    percentage: step?.percentage.toString(),
-                    tokenOut: step?.tokenOut
-                  })),
-                  parseInt(thorchainPercentage),
-                  parseInt(mayaPercentage),
+              case 'odosSwapThenChainflipMayaThor':
+                
+                if (!isEthSwap){
+                  const usdtContract = new ethers.Contract(
+                    (odosInputs?.inputToken ?? ""),
+                                ['function approve(address spender, uint256 amount) public returns (bool)'],
+                                (signer ?? undefined)
+                              );
+                              const approveTx = await usdtContract.approve(allSwapContract.address, odosInputs?.inputAmount);
+                              await approveTx.wait();
+                            }
+                tx = await allSwapContract.odosSwapThenChainflipMayaThor(
+                  odosInputs?.SwapData,
+                  odosInputs?.inputToken,
+                  odosInputs?.outputToken,
+                  odosInputs?.inputAmount,
+                  odosInputs?.odosRouter,
+                  thorchainPercentage,
+                  mayaPercentage,
                   {
                     vault: thorParams.vault,
                     router: thorParams.router,
@@ -554,7 +747,7 @@ const [recipient, setRecipient] = useState<string>('');
                     amount: chainflipParams.amount, 
                     cfParameters: chainflipParams.cfParameters
                   },
-                  { value: isEthSwap ? evmInputs?.inputAmount : 0 }
+                  { value: isEthSwap ? odosInputs?.inputAmount : 0 }
                 );
                 break;
                     default:
@@ -577,7 +770,6 @@ const [recipient, setRecipient] = useState<string>('');
   const encodeMessage = () => {
     try {
       let encoded;
-      if (selectedFunction === 'swapViaChainflipCCM') {
         let memoBytes;
         if (encodingParams.swapType === 0) {
           // THORChain encoding
@@ -603,33 +795,6 @@ const [recipient, setRecipient] = useState<string>('');
           ['uint8', 'address', 'bytes'],
           [encodingParams.swapType, encodingParams.router, memoBytes]
         );
-      } else if (selectedFunction === 'EVMThenChainflipCCM' || selectedFunction === 'squidSwapThenChainflip') {
-        let memoBytes;
-        if (encodingParams.swapType === 0) {
-          // THORChain encoding
-          memoBytes = ethers.utils.toUtf8Bytes(`:=${encodingParams.chain}.${encodingParams.tokenName}:${encodingParams.destinationAddress}`);
-        } else if (encodingParams.swapType === 1) {
-          // EVM DEX encoding
-          memoBytes = ethers.utils.defaultAbiCoder.encode(
-            ['address', 'uint256', 'tuple(uint8 dex, uint256 percentage, address tokenOut)[]'],
-            [
-              encodingParams.outputToken,
-              ethers.utils.parseUnits(encodingParams.minOutputAmount || "0", 18),
-              encodingParams.swapSteps?.map(step => [step.dex, step.percentage, step.tokenOut])
-            ]
-          );
-        } else if (encodingParams.swapType === 2) {
-          // Chainflip Vault deposit encoding
-          memoBytes = ethers.utils.defaultAbiCoder.encode(['bytes32'], [encodingParams.nodeID]);
-        } else {
-          throw new Error('Invalid swap type');
-        }
-  
-        encoded = ethers.utils.defaultAbiCoder.encode(
-          ['uint8', 'address', 'bytes'],
-          [encodingParams.swapType, encodingParams.router, memoBytes]
-        );
-      }
       
       if (ethers.utils.hexDataLength(encoded ?? "0x") >= 10000) {
         throw new Error('Encoded message is too long (>= 10k bytes)');
@@ -650,28 +815,17 @@ const [recipient, setRecipient] = useState<string>('');
 
 
   return (
-    <Flex maxWidth="1200px" margin="auto" mt={8} p={6}>
+    <>
+            <Flex maxWidth="1200px" margin="auto" mt={8} p={6}>
+
       <Box flex={1} mr={8} p={6} borderWidth={1} borderRadius="lg" boxShadow="xl">
         <Heading as="h2" size="md" mb={4}>Contract Settings</Heading>
-        <FormControl mb={4}>
+        {/* <FormControl mb={4}>
           <FormLabel>Contract Address</FormLabel>
           <Input value={contractAddress} onChange={(e) => setContractAddress(e.target.value)} placeholder="Enter contract address" />
         </FormControl>
-        
-        <FormControl mb={4}>
-          <FormLabel>Select Function</FormLabel>
-          <Select value={selectedFunction} onChange={(e) => setSelectedFunction(e.target.value)}>
-            <option value="">Select a function</option>
-            <option value="swapViaChainflipCCM">SwapViaChainflipCCM</option>
-            <option value="EVMThenChainflipCCM">EVMThenChainflipCCM</option>
-            <option value="odosSwapThenChainflipCMM">odosSwapThenChainflipCMM</option>
-            <option value="EVMThenChainflip">EVMThenChainflip</option>
-            <option value="EVMthenThor">EVMthenThor</option>
-            <option value="EVMThenThorMayaChainflip">EVMThenThorMayaChainflip</option>
-          </Select>
-        </FormControl>
-        <Heading as="h2" size="md" mb={4}>Predefined Scenarios</Heading>
-        <FormControl mb={4}>
+         */}
+           <FormControl mb={4}>
           <FormLabel>Select Scenario</FormLabel>
           <Select value={selectedScenario} onChange={handleScenarioChange}>
             <option value="">Select a scenario</option>
@@ -680,8 +834,39 @@ const [recipient, setRecipient] = useState<string>('');
             ))}
           </Select>
         </FormControl>
-        <Divider></Divider>
-        {(selectedFunction === 'swapViaChainflipCCM' || selectedFunction === 'odosSwapThenChainflip' || selectedFunction === 'EVMThenChainflipCCM' || selectedFunction === 'squidSwapThenChainflip' || selectedFunction === 'EVMThenChainflip')&& (
+      <Button mt={4} colorScheme="blue" onClick={() => setShowContract(!showContract)}>
+        Show/Edit Contract Input Data
+      </Button>
+        <FormControl mb={4}>
+          <FormLabel>Select Function</FormLabel>
+          <Select value={selectedFunction} onChange={(e) => setSelectedFunction(e.target.value)}>
+            <option value="">Select a function</option>
+            <option value="swapViaChainflipCCM">Chainflip CMM Swap</option>
+            <option value="EVMThenChainflipCCM">Sushi/Uni then Chainflip CMM</option>
+            <option value="odosSwapThenChainflipCMM">odos then Chainflip CMM</option>
+            <option value="odosSwapThenChainflipMayaThor">odos Swap Then Split Chainflip and Maya/Thor</option>
+          </Select>
+        </FormControl>
+        { (selectedFunction === 'odosSwapThenChainflipCMM' || selectedFunction === 'odosSwapThenChainflipMayaThor') ? (
+            <> 
+             <Button mt={4} colorScheme="green" onClick={handleSubmit}>
+            Execute {selectedFunction}
+          </Button>
+          </>
+          ) : (
+            <>  
+            <Button mt={4} colorScheme="green" onClick={handleSubmit} disabled={!encodedMessage} >
+            Execute {selectedFunction}
+          </Button>
+          </>
+          )}
+        </Box>
+        </Flex>
+        <Flex maxWidth="1200px" margin="auto" mt={8} p={6}>
+
+        <Box flex={1} mr={8} p={6} borderWidth={1} borderRadius="lg" boxShadow="xl">
+
+        {(selectedFunction === 'swapViaChainflipCCM' || selectedFunction === 'odosSwapThenChainflipCMM' || selectedFunction === 'EVMThenChainflipCCM' || selectedFunction === 'squidSwapThenChainflip' || selectedFunction === 'EVMThenChainflip')&& (
           <>
             <Heading as="h2" size="md" mb={4}>Message Encoding</Heading>
             <VStack spacing={4} align="stretch">
@@ -766,6 +951,7 @@ const [recipient, setRecipient] = useState<string>('');
           </>
         )}
       </Box>
+      
       <Box flex={1} p={6} borderWidth={1} borderRadius="lg" boxShadow="xl">
       {(selectedFunction === 'EVMThenChainflipCCM' || selectedFunction === 'EVMThenChainflip' || selectedFunction === 'EVMthenThor') &&  (
           <>
@@ -813,14 +999,18 @@ const [recipient, setRecipient] = useState<string>('');
             </VStack>
           </>
         )}
-          {
-            (selectedFunction === 'odosSwapThenChainflip' || selectedFunction === 'odosSwapThenChainflipMayaThor')&& (
-            <>
-            <Heading as="h2" size="md" mb={4}>Recipient for OdosQuote</Heading>
+        {(selectedFunction === 'odosSwapThenChainflipCMM' || selectedFunction === 'odosSwapThenChainflipMayaThor') && (
+          <>
+            <Heading as="h2" size="md" mb={4}>Recipient</Heading>
             <FormControl>
               <FormLabel>Recipient</FormLabel>
               <Input value={recipient} onChange={(e) => setRecipient(e.target.value)} />
             </FormControl>
+            </>
+        )}
+          {
+            (selectedFunction === 'odosSwapThenChainflipCMM' || selectedFunction === 'odosSwapThenChainflipMayaThor' )&& (
+            <>
             <Heading as="h2" size="md" mb={4}>Odos Params</Heading>
             <FormControl>
               <FormLabel>Input Token</FormLabel>
@@ -1015,10 +1205,12 @@ const [recipient, setRecipient] = useState<string>('');
               <Input value={minOutputAmount} onChange={(e) => setMinOutputAmount(e.target.value)} />
             </FormControl>
           )}
+
     
           <Checkbox isChecked={isEthSwap} onChange={(e) => setIsEthSwap(e.target.checked)} mt={4}>
             Is ETH Swap
           </Checkbox>
+
           
           {/* {!isEthSwap && (
             <Button mt={4} colorScheme="teal" onClick={approveToken} isDisabled={!contractAddress}>
@@ -1026,12 +1218,25 @@ const [recipient, setRecipient] = useState<string>('');
             </Button>
           )} */}
           
-          <Button mt={4} colorScheme="green" onClick={handleSubmit} isDisabled={!contractAddress}>
+          { (selectedFunction === 'odosSwapThenChainflipCMM' || selectedFunction === 'odosSwapThenChainflipMayaThor') ? (
+            <> 
+             <Button mt={4} colorScheme="green" onClick={handleSubmit}>
             Execute {selectedFunction}
           </Button>
+          </>
+          ) : (
+            <>  
+            <Button mt={4} colorScheme="green" onClick={handleSubmit} >
+            Execute {selectedFunction}
+          </Button>
+          </>
+          )}
         </Box>
+        
       </Flex>
+      </>
     );
+    
   }
 
 export default ChainflipCCMSwap;
